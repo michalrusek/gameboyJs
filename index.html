@@ -1,0 +1,58 @@
+<html>
+    <body style="display:flex; flex-direction:row;">
+        <div>
+            GAME:<br/>
+            <div>
+                <canvas id="game" width="160" height="144"></canvas>
+            </div>
+        </div>
+        <div>
+            TILES:<br/>
+            <div>
+                <canvas id="tiles" width="128" height="192"></canvas>
+            </div>
+        </div>
+        <script>
+        (()=>{
+            const { ipcRenderer } = require("electron")
+            const {webFrame} = require("electron")
+            // Set the zoom factor to 200%
+            webFrame.setZoomFactor(2);
+
+            let bgMap = document.getElementById("tiles")
+            let buffer = document.createElement("canvas"); buffer.width = bgMap.width; buffer.height = bgMap.height;
+            let bgMapCtx = bgMap.getContext("2d")
+            let bufferCtx = buffer.getContext("2d")
+            ipcRenderer.on("gpuTiles", (event, arg) => {
+                //arg is an array with rgb values for the tilemap (whole 0x8000 - 0x97FF) - translate it to a canvas
+                for (let k = 0; k < 24; k++) { //draw 24 rows of tiles
+                    for (let i = 0; i < 16; i++) { //draw 16 tiles in one row
+                        tile = arg[k * 16 + i] //tile is an array of lines (arrays), each holding rgb info ([[`rgb(0,0,0)`, `rgb(0,0,0`)...], [`rgb(0, 0, 0 ), `rgb(0,0,0`)...]])
+                        tile.forEach((line, j) => {
+                            let baseX = i * 8
+                            let baseY = k * 8
+                            line.forEach((px, z)=> {
+                                let x = baseX + z; let y = baseY + j;
+                                bufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+                                bufferCtx.fillRect(x, y, 1, 1)
+                            })
+                        })
+                    }
+                }
+                bgMapCtx.drawImage(buffer, 0, 0)
+            })
+
+            let gameCanvas = document.getElementById("game")
+            let frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
+            let frameBufferCtx = frameBuffer.getContext("2d")
+            ipcRenderer.on("framePixels", (event, pixels) => {
+                
+            })
+
+            document.body.onkeypress = (ev) => {
+                ipcRenderer.send("asynchronous-message", ev.key);
+            }
+        })()
+        </script>
+    </body>
+</html>
