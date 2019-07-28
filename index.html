@@ -46,7 +46,13 @@
             let frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
             let frameBufferCtx = frameBuffer.getContext("2d")
             ipcRenderer.on("framePixels", (event, pixels) => {
-                
+                let j = -1;
+                pixels.forEach((px, i) => {
+                    if (i % 160 === 0) {j++}
+                    frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+                    frameBufferCtx.fillRect(i % 160, j, 1, 1)
+                })
+                gameCanvas.drawImage(frameBuffer, 0, 0)
             })
 
             document.body.onkeypress = (ev) => {

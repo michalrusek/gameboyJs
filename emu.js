@@ -108,6 +108,8 @@ let emu = function (window, STEP_THROUGH) {
     //GPU
     let gpu = (() => {
         let tiles = [] // 384 tiles - each tile is [0..7] of [0..7] (8 rows of 8 pixels each)
+        let frame = new Array(144); for (let i = 0; i < frame.length; i++) {frame.push(new Uint8Array(160))}
+        let bgMapPixels = new Array(256); for (let i = 0; i < bgMapPixels.length; i++) {bgMapPixels.push(new Array(256))}
         let vstat = 0; let hstat = 0;
 
         //TODO: Throw this into a process; this can happen whenever and could be resource intensive
@@ -126,8 +128,34 @@ let emu = function (window, STEP_THROUGH) {
                 }
                 tiles.push(lines)
             }
+
+            //TODO: Check how often this should really happen (probably with each write to VRAM or something)
+            updateBgMap()
         }
 
+        let updateBgMap = () => {
+            //1. Read BGMap from memory (32x32 tiles)
+            //2. Throw it into bgMapPixels array (256 x 256 (32 * 8 = 256))
+        }
+
+        let drawLine = (lineNo) => {
+            let line = new Array(256)
+            //BGMap
+            //1. Read scroll positions
+            let scy = mem.readByte(0xFF42); let scx = mem.readByte(0xFF43)
+            let bgY = lineNo + scy; if (bgLineNo > 0xFF) {bgLineNo = bgLineNo % 0xFF}
+            //2. Draw scrollX + lineNo
+            for (let i = 0; i < 160; i++) {
+                let bgX = scx + i; if (bgX > 0xFF) {bgX = bgX % 0xFF}
+                frame[lineNo][i] = bgMapPixels[bgY][bgX]
+            }
+
+            //TODO: WINDOW
+
+            //TODO: SPRITES
+        }
+
+        //TODO: Throw this into a process if it's too expensive; this can be offloaded and then only the data can be sent to renderer
         let update = () => {
             //TODO: FINISH THIS UP
             mem.setByte(0xFF44, vstat)
@@ -137,6 +165,7 @@ let emu = function (window, STEP_THROUGH) {
             }
 
             if (vstat < 144) {
+                drawLine(vstat)
                 vstat++;
             } else {
                 if (vstat === 144) {
