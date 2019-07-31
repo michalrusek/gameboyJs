@@ -31,8 +31,6 @@ function createWindow () {
     // when you should delete the corresponding element.
     win = null
   })
-
-  emuO = emu(win, STEP_THROUGH)
 }
 
 // This method will be called when Electron has finished
@@ -69,5 +67,7 @@ ipcMain.on('asynchronous-message', (ev, args) => {
     emuO.step()
   } else if (args === "m" && STEP_THROUGH) {
     emuO.loopUntil(breakPoint)
+  } else if (args === "start") {
+    emuO = emu(win, STEP_THROUGH)
   }
 })

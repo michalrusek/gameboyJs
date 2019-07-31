@@ -108,23 +108,23 @@ let emu = function (window, STEP_THROUGH) {
     //GPU
     let gpu = (() => {
         let tiles = [] // 384 tiles - each tile is [0..7] of [0..7] (8 rows of 8 pixels each)
-        let frame = new Array(144); for (let i = 0; i < frame.length; i++) {frame.push(new Uint8Array(160))}
-        let bgMapPixels = new Array(256); for (let i = 0; i < bgMapPixels.length; i++) {bgMapPixels.push(new Array(256))}
+        let frame = new Array(144); for (let i = 0; i < 144; i++) {frame[i] = new Array(160)}
+        let bgMapPixels = new Array(256); for (let i = 0; i < 256; i++) {bgMapPixels[i] = new Uint8Array(256)}
         let vstat = 0; let hstat = 0;
 
         //TODO: Throw this into a process; this can happen whenever and could be resource intensive
         let recalcTiles = () => {
             let getLine = (a, b) => {
-                a = a.toString(2).substring(a.length - 8).padStart(8, "0").split("").reverse()
-                b = b.toString(2).substring(b.length - 8).padStart(8, "0").split("").reverse()
-                return a.map((v, i) => {let num = parseInt(v + b[i], 2); return 255/num})
+                a = a.toString(2).substring(a.length - 8).padStart(8, "0").split("")
+                b = b.toString(2).substring(b.length - 8).padStart(8, "0").split("")
+                return a.map((v, i) => {let num = parseInt(v + b[i], 2); return num ? 255/num : 0})
             }
 
             tiles = []
             for (let i = 0x8000; i < 0x9800; i = i + 16) {
                 let lines = []
                 for (j = 0; j < 16; j = j + 2) {
-                    let topByte = mem.readByte(i + j); let botByte = mem.readByte(i + j + 1); let line = getLine(topByte, botByte); lines.push(line);
+                    let topByte = mem.readByte(i + j); let botByte = mem.readByte(i + j + 1); let line = getLine(botByte, topByte); lines.push(line);
                 }
                 tiles.push(lines)
             }
@@ -135,7 +135,23 @@ let emu = function (window, STEP_THROUGH) {
 
         let updateBgMap = () => {
             //1. Read BGMap from memory (32x32 tiles)
+            let bgTiles = []
+            for (let i = 0x9800; i < 0x9C00; i++) {bgTiles.push(mem.readByte(i))}
+
             //2. Throw it into bgMapPixels array (256 x 256 (32 * 8 = 256))
+            for (let i = 0; i < 32; i++) {
+                for (let j = 0; j < 32; j++) {
+                    let tileToWrite = tiles[bgTiles[i * 32 + j]]
+                    tileToWrite.forEach((row, y) => {
+                        row.forEach((pixel, x) => {
+                            let bgX = j * 8 + x;
+                            let bgY = i * 8 + y;
+                            bgMapPixels[bgY][bgX] = pixel;
+                            
+                        })
+                    })
+                }
+            }
         }
 
         let drawLine = (lineNo) => {
@@ -143,7 +159,7 @@ let emu = function (window, STEP_THROUGH) {
             //BGMap
             //1. Read scroll positions
             let scy = mem.readByte(0xFF42); let scx = mem.readByte(0xFF43)
-            let bgY = lineNo + scy; if (bgLineNo > 0xFF) {bgLineNo = bgLineNo % 0xFF}
+            let bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY % 0xFF}
             //2. Draw scrollX + lineNo
             for (let i = 0; i < 160; i++) {
                 let bgX = scx + i; if (bgX > 0xFF) {bgX = bgX % 0xFF}
@@ -182,7 +198,8 @@ let emu = function (window, STEP_THROUGH) {
         return {
             update: update,
             recalcTiles: recalcTiles,
-            getTiles: () => tiles
+            getTiles: () => tiles,
+            getFrame: () => frame.flat(1)
         }
     })()
 
@@ -194,6 +211,13 @@ let emu = function (window, STEP_THROUGH) {
         frames++;
         setTimeout(loop.bind(this), 16) //60FPS
         
+        // if (vramChanged) {
+            gpu.recalcTiles()
+            window.webContents.send('gpuTiles', gpu.getTiles()) 
+            window.webContents.send('framePixels', gpu.getFrame()) 
+            vramChanged = false
+        // }
+
         if (!this.paused) {
             //4,213,440 CPU ticks each second, 154 scanlines per frame
             for (let i = 0; i < 154 * 4; i++) {
@@ -202,23 +226,21 @@ let emu = function (window, STEP_THROUGH) {
                 gpu.update()
             }
         }
-        // if (vramChanged) {
-            gpu.recalcTiles()
-            window.webContents.send('gpuTiles', gpu.getTiles()) 
-            vramChanged = false
-        // }
 
         console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
     }
 
     let loopUntil = (when) => {
         let stop = false
+        
+        gpu.recalcTiles()
+        window.webContents.send('gpuTiles', gpu.getTiles()) 
+        window.webContents.send('framePixels', gpu.getFrame()) 
+
         while (!stop) {
             stop = cpu.runCyclesUntil(114, when)
             gpu.update()
         }
-        gpu.recalcTiles()
-        window.webContents.send('gpuTiles', gpu.getTiles()) 
     }
 
     let step = () => {

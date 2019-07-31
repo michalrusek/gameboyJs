@@ -43,6 +43,7 @@
             })
 
             let gameCanvas = document.getElementById("game")
+            let gameCanvasCtx = gameCanvas.getContext("2d")
             let frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
             let frameBufferCtx = frameBuffer.getContext("2d")
             ipcRenderer.on("framePixels", (event, pixels) => {
@@ -52,12 +53,16 @@
                     frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
                     frameBufferCtx.fillRect(i % 160, j, 1, 1)
                 })
-                gameCanvas.drawImage(frameBuffer, 0, 0)
+                gameCanvasCtx.drawImage(frameBuffer, 0, 0)
             })
 
             document.body.onkeypress = (ev) => {
                 ipcRenderer.send("asynchronous-message", ev.key);
             }
+
+            (()=>{
+                ipcRenderer.send("asynchronous-message", "start");                
+            })()
         })()
         </script>
     </body>
