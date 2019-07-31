@@ -209,18 +209,18 @@ let emu = function (window, STEP_THROUGH) {
 
     let loop = function () {
         frames++;
-        setTimeout(loop.bind(this), 16) //60FPS
+        setTimeout(loop.bind(this), 32) //30FPS
         
-        // if (vramChanged) {
+        if (vramChanged) {
             gpu.recalcTiles()
             window.webContents.send('gpuTiles', gpu.getTiles()) 
-            window.webContents.send('framePixels', gpu.getFrame()) 
             vramChanged = false
-        // }
+        }
+        window.webContents.send('framePixels', gpu.getFrame()) 
 
         if (!this.paused) {
             //4,213,440 CPU ticks each second, 154 scanlines per frame
-            for (let i = 0; i < 154 * 4; i++) {
+            for (let i = 0; i < 154 * 4 * 2; i++) {
                 cpu.runCycles(114)
                 //timers.update(114)
                 gpu.update()

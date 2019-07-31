@@ -55,6 +55,8 @@ app.on('activate', () => {
   }
 })
 
+app.disableHardwareAcceleration()
+
 // Disable error dialogs by overriding
 // FIX: https://goo.gl/YsDdsS
 dialog.showErrorBox = function(title, content) {
