@@ -5,7 +5,7 @@ const {compress} = require('lz-string')
 
 let emu = function (window, STEP_THROUGH) {
     //1. Read boot rom and game
-    let bootRom = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "DMG_ROM.bin")))
+    // let bootRom = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "DMG_ROM.bin")))
     let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Tetris (JUE) (V1.1) [!].gb")))
     let vramChanged = false
 
@@ -72,6 +72,7 @@ let emu = function (window, STEP_THROUGH) {
     mem.setByte(0xFF4A, 0x00)
     mem.setByte(0xFF4B, 0x00)
     mem.setByte(0xFFFF, 0x00)
+    mem.setByte(0xFF50, 0x01) //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
     
     //3. Initialize CPU
     let cpu = z80(mem)
@@ -83,9 +84,9 @@ let emu = function (window, STEP_THROUGH) {
     })
 
     //4b. Read GB bios into memory
-    bootRom.forEach((val, index) => {
-        mem.setByte(index, val)
-    })
+    // bootRom.forEach((val, index) => {
+    //     mem.setByte(index, val)
+    // })
 
     let interrupts = (()=>{
 
