@@ -141,6 +141,7 @@ let emu = function (window, STEP_THROUGH) {
             //2. Throw it into bgMapPixels array (256 x 256 (32 * 8 = 256))
             for (let i = 0; i < 32; i++) {
                 for (let j = 0; j < 32; j++) {
+                    //TODO: Implement addressing tiles as -127 to 127 as well
                     let tileToWrite = tiles[bgTiles[i * 32 + j]]
                     tileToWrite.forEach((row, y) => {
                         row.forEach((pixel, x) => {
@@ -157,6 +158,7 @@ let emu = function (window, STEP_THROUGH) {
         let drawLine = (lineNo) => {
             let line = new Array(256)
             //BGMap
+            //TODO: Check if BG should be drawn (LCDC bit 0?)
             //1. Read scroll positions
             let scy = mem.readByte(0xFF42); let scx = mem.readByte(0xFF43)
             let bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY % 0xFF}
@@ -219,7 +221,7 @@ let emu = function (window, STEP_THROUGH) {
         window.webContents.send('framePixels', gpu.getFrame()) 
 
         if (!this.paused) {
-            //4,213,440 CPU ticks each second, 154 scanlines per frame
+            //4,213,440 CPU ticks each second, 154 scanlines per frame - draw 2 frames
             for (let i = 0; i < 154 * 4 * 2; i++) {
                 cpu.runCycles(114)
                 //timers.update(114)
