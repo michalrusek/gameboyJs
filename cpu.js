@@ -1,4 +1,4 @@
-let cpu = function (mem) {
+let cpu = function (mem, runInterruptsFunction) {
     "use strict";
     let debug = false
     let uniqueInstr = {}
@@ -30,7 +30,7 @@ let cpu = function (mem) {
     }
 
     let runCycles = function (n) {
-        while (n > 0) {
+        while (n > 0 && !stopped) {
             n = n - opcode(mem.readByte(pc))
             syncFlags()
 
@@ -45,7 +45,7 @@ let cpu = function (mem) {
     }
 
     let runCyclesUntil = function (n, when) {
-        while (n > 0) {
+        while (n > 0 && !stopped) {
             n = n - opcode(mem.readByte(pc))
             syncFlags()
 
@@ -122,12 +122,16 @@ let cpu = function (mem) {
 
         return cycles;
     }
-    let xor = (a, b) => {if ((a ^ b) === 0) {f.z = 1} else {f.z = 0} f.n = 0; f.c = 0; f.h = 0; return a ^ b}
+    let xor = (a, b) => {if ((a ^ b) == 0) {f.z = 1} else {f.z = 0} f.n = 0; f.c = 0; f.h = 0; return a ^ b}
+    let or = (a, b) => {if ((a | b) == 0) {f.z = 1} else {f.z = 0} f.n = 0; f.c = 0; f.h = 0; return a | b}
+    let and = (a, b) => {f.n = 0; f.h = 1; f.c = 0; if ((a & b) == 0) {f.z = 1} else {f.z = 0} return a & b}
     let incByte = (a) => {f.n = 0; f.h = 0; f.z = 0; if (a == 0xFF) {f.h = 1; f.z = 1; return 0} if (a % 16 == 15) {f.h = 1} return a + 1}
     let decByte = (a) => {f.n = 1; f.h = 0; if (a == 0) {f.h = 1; f.z = 0; return 0xFF} if (a == 1) {f.z = 1; return 0} f.z = 0; if (a % 16 == 0) {f.h = 1} return a - 1}
     let sbc = (a, b) => {return sub(a, b + f.c)}
     let sub = (a, b) => {f.n = 1; let res = a - b; f.c = res < 0 ? 1 : 0; f.z = res == 0 ? 1 : 0; f.h = (a & 0xF) - (b & 0xF) < 0 ? 1 : 0; return Math.abs(res)}
     let add = (a, b) => {f.n = 0; let res = a + b; f.c = res > 255 ? 1 : 0; f.z = (res % 256) == 0 ? 1 : 0; f.h = (a & 0xF) + (b & 0xF) > 0xF ? 1 : 0; return res % 256}
+    let adc = (a, b) => {return add(a, b + f.c)}
+    let addWord = (a, b) => {f.n = 0; let res = a + b; f.c = res > 0xFFFF ? 1 : 0; f.h = (a & 0xFFF) + (b & 0xFFF) > 0xFFF ? 1 : 0; return res % 0x10000}
     let call = (addr) => {if (sp == 0) {throw new Error(`SP going lower than 0.`)} sp = sp - 2; mem.setWord(sp, pc); pc = addr}
 
     let opcodes = {
@@ -139,62 +143,80 @@ let cpu = function (mem) {
         '5': ()=>{r.b = decByte(r.b); pc = pc + 1; return 4},
         '6': ()=>{r.b = mem.readByte(pc + 1); pc = pc + 2; return 8},
         '7': ()=>{cb(7); pc = pc + 1; return 4},
-        '8': ()=>{throw new Error(`Not implemented!`)},
-        '9': ()=>{throw new Error(`Not implemented!`)},
-        'a': ()=>{throw new Error(`Not implemented!`)},
-        'b': ()=>{throw new Error(`Not implemented!`)},
+        '8': ()=>{mem.setWord(mem.readWord(pc + 1), sp); pc = pc + 3; return 20},
+        '9': ()=>{hl(addWord(hl(), bc())); pc = pc + 1; return 8},
+        'a': ()=>{r.a = mem.readByte(bc()); pc = pc + 1; return 8},
+        'b': ()=>{if (bc() == 0) {bc(0xFFFF)} else {bc(bc() - 1)} pc = pc + 1; return 8},
         'c': ()=>{r.c = incByte(r.c); pc = pc + 1; return 4},
         'd': ()=>{r.c = decByte(r.c); pc = pc + 1; return 4},
         'e': ()=>{r.c = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        'f': ()=>{throw new Error(`Not implemented!`)},
-        '10': ()=>{throw new Error(`Not implemented!`)},
+        'f': ()=>{cb(15); pc = pc + 1; return 4},
+        '10': ()=>{stopped = true; pc = pc + 1; return 4},
         '11': ()=>{de(mem.readWord(pc + 1)); pc = pc + 3; return 12},
-        '12': ()=>{throw new Error(`Not implemented!`)},
+        '12': ()=>{mem.setByte(de(), r.a); pc = pc + 1; return 8},
         '13': ()=>{if (de() == 0xFFFF) {de(0)} else {de(de() + 1)} pc = pc + 1; return 8},
-        '14': ()=>{throw new Error(`Not implemented!`)},
+        '14': ()=>{r.d = incByte(r.d); pc = pc + 1; return 4},
         '15': ()=>{r.d = decByte(r.d); pc = pc + 1; return 4},
         '16': ()=>{r.d = mem.readByte(pc + 1); pc = pc + 2; return 8},
         '17': ()=>{pc = pc + 1; cb(23); return 4;},
         '18': ()=>{pc = pc + 1; pc = pc + mem.readSigned(pc) + 1; return 12},
-        '19': ()=>{throw new Error(`Not implemented!`)},
+        '19': ()=>{hl(addWord(hl(), de())); pc = pc + 1; return 8},
         '1a': ()=>{r.a = mem.readByte(de()); pc = pc + 1; return 8},
-        '1b': ()=>{throw new Error(`Not implemented!`)},
-        '1c': ()=>{throw new Error(`Not implemented!`)},
+        '1b': ()=>{if (de() == 0) {de(0xFFFF)} else {de(de() - 1)} pc = pc + 1; return 8},
+        '1c': ()=>{r.e = incByte(r.e); pc = pc + 1; return 4},
         '1d': ()=>{r.e = decByte(r.e); pc = pc + 1; return 4},
         '1e': ()=>{r.e = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '1f': ()=>{throw new Error(`Not implemented!`)},
+        '1f': ()=>{cb(31); pc = pc + 1; return 4},
         '20': ()=>{if (f.z == 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
         '21': ()=>{hl(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '22': ()=>{mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) } pc = pc + 1; return 8},
         '23': ()=>{if (hl() == 0xFFFF) {hl(0)} else {hl(hl() + 1)} pc = pc + 1; return 8},
         '24': ()=>{r.h = incByte(r.h); pc = pc + 1; return 4},
-        '25': ()=>{throw new Error(`Not implemented!`)},
-        '26': ()=>{throw new Error(`Not implemented!`)},
-        '27': ()=>{throw new Error(`Not implemented!`)},
+        '25': ()=>{r.h = decByte(r.h); pc = pc + 1; return 4},
+        '26': ()=>{r.h = mem.readByte(pc + 1); pc = pc + 2; return 8},
+        '27': ()=>{
+            //DAA -> adjusts A to be a correct BCD representation (each nibble is in range 0-9, max number is 0x99)
+            //This is intended to be used after addition/substraction
+            //The reason we have to adjust it is to handle overflows/underflows 
+            //See: https://forums.nesdev.com/viewtopic.php?f=20&t=15944#p196282
+            if (!f.n) {
+                //addition
+                if (f.c || r.a > 0x99) {r.a = r.a + 0x60; f.c = 1}
+                if (f.h || (r.a & 0xF) > 0x9) {r.a = r.a + 0x6}
+            } else {
+                //substraction
+                if (f.c) {r.a = r.a - 0x60}
+                if (f.h) {r.a = r.a - 0x6}
+            }
+            f.z = r.a == 0 ? 1 : 0
+            f.h = 0
+            pc = pc + 1
+            return 4
+        },
         '28': ()=>{if (f.z == 1) {pc = pc + 1; pc = pc + mem.readSigned(pc) + 1; return 12} else {pc = pc + 2; return 8}},
-        '29': ()=>{throw new Error(`Not implemented!`)},
-        '2a': ()=>{throw new Error(`Not implemented!`)},
-        '2b': ()=>{throw new Error(`Not implemented!`)},
-        '2c': ()=>{throw new Error(`Not implemented!`)},
-        '2d': ()=>{throw new Error(`Not implemented!`)},
+        '29': ()=>{hl(addWord(hl(), hl())); pc = pc + 1; return 8},
+        '2a': ()=>{r.a = mem.readByte(hl()); if (hl() == 0xFFFF) {hl(0)} else {hl(hl() + 1)} pc = pc + 1; return 8},
+        '2b': ()=>{if (hl() == 0) {hl(0xFFFF)} else {hl(hl() - 1)} pc = pc + 1; return 8},
+        '2c': ()=>{r.l = incByte(r.l); pc = pc + 1; return 4},
+        '2d': ()=>{r.l = decByte(r.l); pc = pc + 1; return 4},
         '2e': ()=>{r.l = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '2f': ()=>{throw new Error(`Not implemented!`)},
-        '30': ()=>{throw new Error(`Not implemented!`)},
+        '2f': ()=>{r.a = r.a ^ 0xFF; f.n = 1; f.h = 1; pc = pc + 1; return 4},
+        '30': ()=>{if (f.c == 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
         '31': ()=>{sp = mem.readWord(pc + 1); pc = pc + 3; return 12},
         '32': ()=>{mem.setByte(hl(), r.a); if (hl() == 0) { hl(0xFFFF) } else { hl(hl() - 1) } pc = pc + 1; return 8},
-        '33': ()=>{throw new Error(`Not implemented!`)},
-        '34': ()=>{throw new Error(`Not implemented!`)},
-        '35': ()=>{throw new Error(`Not implemented!`)},
+        '33': ()=>{if (sp == 0xFFFF) {sp = 0} else {sp = sp + 1} pc = pc + 1; return 8},
+        '34': ()=>{mem.setByte(hl(), incByte(mem.readByte(hl()))); pc = pc + 1; return 12},
+        '35': ()=>{mem.setByte(hl(), decByte(mem.readByte(hl()))); pc = pc + 1; return 12},
         '36': ()=>{mem.setByte(hl(), mem.readByte(pc + 1)); pc = pc + 2; return 12},
-        '37': ()=>{throw new Error(`Not implemented!`)},
-        '38': ()=>{throw new Error(`Not implemented!`)},
-        '39': ()=>{throw new Error(`Not implemented!`)},
-        '3a': ()=>{throw new Error(`Not implemented!`)},
-        '3b': ()=>{throw new Error(`Not implemented!`)},
-        '3c': ()=>{throw new Error(`Not implemented!`)},
+        '37': ()=>{f.n = 0; f.h = 0; f.c = 1; pc = pc + 1; return 4},
+        '38': ()=>{if (f.c != 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
+        '39': ()=>{hl(addWord(hl(), sp)); pc = pc + 1; return 8},
+        '3a': ()=>{r.a = mem.readByte(hl()); if (hl() == 0) {hl(0xFFFF)} else {hl(hl() - 1)} pc = pc + 1; return 8},
+        '3b': ()=>{if (sp == 0) {sp = 0xFFFF} else {sp = sp - 1} pc = pc + 1; return 8},
+        '3c': ()=>{r.a = incByte(r.a); pc = pc + 1; return 4},
         '3d': ()=>{r.a = decByte(r.a); pc = pc + 1; return 4},
         '3e': ()=>{r.a = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '3f': ()=>{throw new Error(`Not implemented!`)},
+        '3f': ()=>{f.n = 0; f.h = 0; if (f.c == 0) {f.c = 1} else {f.c = 0}; pc = pc + 1; return 4},
         '40': ()=>{r.b = r.b; pc = pc + 1; return 4},
         '41': ()=>{r.b = r.c; pc = pc + 1; return 4},
         '42': ()=>{r.b = r.d; pc = pc + 1; return 4},
@@ -249,7 +271,7 @@ let cpu = function (mem) {
         '73': ()=>{mem.setByte(hl(), r.e); pc = pc + 1; return 8},
         '74': ()=>{mem.setByte(hl(), r.h); pc = pc + 1; return 8},
         '75': ()=>{mem.setByte(hl(), r.l); pc = pc + 1; return 8},
-        '76': ()=>{throw new Error(`Not implemented!`)},
+        '76': ()=>{if (IME) {stopped = true} pc = pc + 1; return 4},
         '77': ()=>{mem.setByte(hl(), r.a); pc = pc + 1; return 8},
         '78': ()=>{r.a = r.b; pc = pc + 1; return 4},
         '79': ()=>{r.a = r.c; pc = pc + 1; return 4},
@@ -267,14 +289,14 @@ let cpu = function (mem) {
         '85': ()=>{r.a = add(r.a, r.l); pc = pc + 1; return 4},
         '86': ()=>{r.a = add(r.a, mem.readByte(hl())); pc = pc + 1; return 8},
         '87': ()=>{r.a = add(r.a, r.a); pc = pc + 1; return 4},
-        '88': ()=>{throw new Error(`Not implemented!`)},
-        '89': ()=>{throw new Error(`Not implemented!`)},
-        '8a': ()=>{throw new Error(`Not implemented!`)},
-        '8b': ()=>{throw new Error(`Not implemented!`)},
-        '8c': ()=>{throw new Error(`Not implemented!`)},
-        '8d': ()=>{throw new Error(`Not implemented!`)},
-        '8e': ()=>{throw new Error(`Not implemented!`)},
-        '8f': ()=>{throw new Error(`Not implemented!`)},
+        '88': ()=>{r.a = adc(r.a, r.b); pc = pc + 1; return 4},
+        '89': ()=>{r.a = adc(r.a, r.c); pc = pc + 1; return 4},
+        '8a': ()=>{r.a = adc(r.a, r.d); pc = pc + 1; return 4},
+        '8b': ()=>{r.a = adc(r.a, r.e); pc = pc + 1; return 4},
+        '8c': ()=>{r.a = adc(r.a, r.h); pc = pc + 1; return 4},
+        '8d': ()=>{r.a = adc(r.a, r.l); pc = pc + 1; return 4},
+        '8e': ()=>{r.a = adc(r.a, mem.readByte(hl())); pc = pc + 1; return 8},
+        '8f': ()=>{r.a = adc(r.a, r.a); pc = pc + 1; return 4},
         '90': ()=>{r.a = sub(r.a, r.b); pc = pc + 1; return 4},
         '91': ()=>{r.a = sub(r.a, r.c); pc = pc + 1; return 4},
         '92': ()=>{r.a = sub(r.a, r.d); pc = pc + 1; return 4},
@@ -291,14 +313,14 @@ let cpu = function (mem) {
         '9d': ()=>{r.a = sbc(r.a, r.l); pc = pc + 1; return 4},
         '9e': ()=>{r.a = sbc(r.a, mem.readByte(hl())); pc = pc + 1; return 8},
         '9f': ()=>{r.a = sbc(r.a, r.a); pc = pc + 1; return 4},
-        'a0': ()=>{throw new Error(`Not implemented!`)},
-        'a1': ()=>{throw new Error(`Not implemented!`)},
-        'a2': ()=>{throw new Error(`Not implemented!`)},
-        'a3': ()=>{throw new Error(`Not implemented!`)},
-        'a4': ()=>{throw new Error(`Not implemented!`)},
-        'a5': ()=>{throw new Error(`Not implemented!`)},
-        'a6': ()=>{throw new Error(`Not implemented!`)},
-        'a7': ()=>{throw new Error(`Not implemented!`)},
+        'a0': ()=>{r.a = and(r.a, r.b); pc = pc + 1; return 4},
+        'a1': ()=>{r.a = and(r.a, r.c); pc = pc + 1; return 4},
+        'a2': ()=>{r.a = and(r.a, r.d); pc = pc + 1; return 4},
+        'a3': ()=>{r.a = and(r.a, r.e); pc = pc + 1; return 4},
+        'a4': ()=>{r.a = and(r.a, r.h); pc = pc + 1; return 4},
+        'a5': ()=>{r.a = and(r.a, r.l); pc = pc + 1; return 4},
+        'a6': ()=>{r.a = and(r.a, mem.readByte(hl())); pc = pc + 1; return 4},
+        'a7': ()=>{r.a = and(r.a, r.a); pc = pc + 1; return 4},
         'a8': ()=>{r.a = xor(r.a, r.b); pc = pc + 1; return 4},
         'a9': ()=>{r.a = xor(r.a, r.c); pc = pc + 1; return 4},
         'aa': ()=>{r.a = xor(r.a, r.d); pc = pc + 1; return 4},
@@ -307,14 +329,14 @@ let cpu = function (mem) {
         'ad': ()=>{r.a = xor(r.a, r.l); pc = pc + 1; return 4},
         'ae': ()=>{r.a = xor(r.a, mem.readByte(hl())); pc = pc + 1; return 4},
         'af': ()=>{r.a = xor(r.a, r.a); pc = pc + 1; return 4},
-        'b0': ()=>{throw new Error(`Not implemented!`)},
-        'b1': ()=>{throw new Error(`Not implemented!`)},
-        'b2': ()=>{throw new Error(`Not implemented!`)},
-        'b3': ()=>{throw new Error(`Not implemented!`)},
-        'b4': ()=>{throw new Error(`Not implemented!`)},
-        'b5': ()=>{throw new Error(`Not implemented!`)},
-        'b6': ()=>{throw new Error(`Not implemented!`)},
-        'b7': ()=>{throw new Error(`Not implemented!`)},
+        'b0': ()=>{r.a = or(r.a, r.b); pc = pc + 1; return 4},
+        'b1': ()=>{r.a = or(r.a, r.c); pc = pc + 1; return 4},
+        'b2': ()=>{r.a = or(r.a, r.d); pc = pc + 1; return 4},
+        'b3': ()=>{r.a = or(r.a, r.e); pc = pc + 1; return 4},
+        'b4': ()=>{r.a = or(r.a, r.h); pc = pc + 1; return 4},
+        'b5': ()=>{r.a = or(r.a, r.l); pc = pc + 1; return 4},
+        'b6': ()=>{r.a = or(r.a, mem.readByte(hl())); pc = pc + 1; return 4},
+        'b7': ()=>{r.a = or(r.a, r.a); pc = pc + 1; return 4},
         'b8': ()=>{sub(r.a, r.b); pc = pc + 1; return 4},
         'b9': ()=>{sub(r.a, r.c); pc = pc + 1; return 4},
         'ba': ()=>{sub(r.a, r.d); pc = pc + 1; return 4},
@@ -323,70 +345,70 @@ let cpu = function (mem) {
         'bd': ()=>{sub(r.a, r.l); pc = pc + 1; return 4},
         'be': ()=>{sub(r.a, mem.readByte(hl())); pc = pc + 1; return 8},
         'bf': ()=>{sub(r.a, r.a); pc = pc + 1; return 4},
-        'c0': ()=>{throw new Error(`Not implemented!`)},
+        'c0': ()=>{if (f.z == 0) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
         'c1': ()=>{bc(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
-        'c2': ()=>{throw new Error(`Not implemented!`)},
+        'c2': ()=>{if (f.z == 0) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'c3': ()=>{pc = mem.readWord(pc + 1); return 16},
-        'c4': ()=>{throw new Error(`Not implemented!`)},
+        'c4': ()=>{if (f.z == 0) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
         'c5': ()=>{sp = sp - 2; mem.setWord(sp, bc()); pc = pc + 1; return 16},
-        'c6': ()=>{throw new Error(`Not implemented!`)},
-        'c7': ()=>{throw new Error(`Not implemented!`)},
-        'c8': ()=>{throw new Error(`Not implemented!`)},
+        'c6': ()=>{r.a = add(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'c7': ()=>{pc = pc + 1; call(0x0); return 16},
+        'c8': ()=>{if (f.z == 1) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
         'c9': ()=>{pc = mem.readWord(sp); sp = sp + 2; return 16},
-        'ca': ()=>{throw new Error(`Not implemented!`)},
+        'ca': ()=>{if (f.z == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'cb': ()=>{let cyclos = cb(mem.readByte(pc + 1)); pc = pc + 2; return cyclos},
-        'cc': ()=>{throw new Error(`Not implemented!`)},
+        'cc': ()=>{if (f.z == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
         'cd': ()=>{pc = pc + 3; call(mem.readWord(pc - 2)); return 24},
-        'ce': ()=>{throw new Error(`Not implemented!`)},
-        'cf': ()=>{throw new Error(`Not implemented!`)},
-        'd0': ()=>{throw new Error(`Not implemented!`)},
-        'd1': ()=>{throw new Error(`Not implemented!`)},
-        'd2': ()=>{throw new Error(`Not implemented!`)},
-        'd3': ()=>{throw new Error(`Not implemented!`)},
-        'd4': ()=>{throw new Error(`Not implemented!`)},
-        'd5': ()=>{throw new Error(`Not implemented!`)},
-        'd6': ()=>{throw new Error(`Not implemented!`)},
-        'd7': ()=>{throw new Error(`Not implemented!`)},
-        'd8': ()=>{throw new Error(`Not implemented!`)},
-        'd9': ()=>{throw new Error(`Not implemented!`)},
-        'da': ()=>{throw new Error(`Not implemented!`)},
-        'db': ()=>{throw new Error(`Not implemented!`)},
-        'dc': ()=>{throw new Error(`Not implemented!`)},
-        'dd': ()=>{throw new Error(`Not implemented!`)},
-        'de': ()=>{throw new Error(`Not implemented!`)},
-        'df': ()=>{throw new Error(`Not implemented!`)},
+        'ce': ()=>{r.a = adc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'cf': ()=>{pc = pc + 1; call(0x8); return 16},
+        'd0': ()=>{if (f.c == 0) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
+        'd1': ()=>{de(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'd2': ()=>{if (f.c == 0) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
+        'd3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'd4': ()=>{if (f.c == 0) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
+        'd5': ()=>{sp = sp - 2; mem.setWord(sp, de()); pc = pc + 1; return 16},
+        'd6': ()=>{r.a = sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'd7': ()=>{pc = pc + 1; call(0x10); return 16},
+        'd8': ()=>{if (f.c == 1) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
+        'd9': ()=>{pc = mem.readWord(sp); sp = sp + 2; IME = true; return 16},
+        'da': ()=>{if (f.c == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
+        'db': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'dc': ()=>{if (f.c == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
+        'dd': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'de': ()=>{r.a = sbc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'df': ()=>{pc = pc + 1; call(0x18); return 16},
         'e0': ()=>{mem.setByte(0xFF00 + mem.readByte(pc + 1), r.a); pc = pc + 2; return 12},
-        'e1': ()=>{throw new Error(`Not implemented!`)},
+        'e1': ()=>{hl(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
         'e2': ()=>{mem.setByte(0xFF00 + r.c, r.a); pc = pc + 1; return 8},
-        'e3': ()=>{throw new Error(`Not implemented!`)},
-        'e4': ()=>{throw new Error(`Not implemented!`)},
-        'e5': ()=>{throw new Error(`Not implemented!`)},
-        'e6': ()=>{throw new Error(`Not implemented!`)},
-        'e7': ()=>{throw new Error(`Not implemented!`)},
-        'e8': ()=>{throw new Error(`Not implemented!`)},
-        'e9': ()=>{throw new Error(`Not implemented!`)},
+        'e3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'e4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'e5': ()=>{sp = sp - 2; mem.setWord(sp, hl()); pc = pc + 1; return 16},
+        'e6': ()=>{r.a = and(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'e7': ()=>{pc = pc + 1; call(0x20); return 16},
+        'e8': ()=>{sp = addWord(sp, mem.readSigned(pc + 1)); if (sp < 0) {throw new Error(`Apparently there's an edge case you have to cover?`)} f.z = 0; pc = pc + 2; return 16},
+        'e9': ()=>{pc = hl(); return 4},
         'ea': ()=>{mem.setByte(mem.readWord(pc + 1), r.a); pc = pc + 3; return 16},
-        'eb': ()=>{throw new Error(`Not implemented!`)},
-        'ec': ()=>{throw new Error(`Not implemented!`)},
-        'ed': ()=>{throw new Error(`Not implemented!`)},
+        'eb': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'ec': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'ed': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'ee': ()=>{r.a = xor(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
-        'ef': ()=>{throw new Error(`Not implemented!`)},
+        'ef': ()=>{pc = pc + 1; call(0x28); return 16},
         'f0': ()=>{r.a = mem.readByte(0xFF00 + mem.readByte(pc + 1)); pc = pc + 2; return 12},
-        'f1': ()=>{throw new Error(`Not implemented!`)},
-        'f2': ()=>{throw new Error(`Not implemented!`)},
+        'f1': ()=>{af(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'f2': ()=>{r.a = mem.readByte(0xFF00 + r.c); pc = pc + 1; return 8},
         'f3': ()=>{IME = false; pc = pc + 1; return 4},
-        'f4': ()=>{throw new Error(`Not implemented!`)},
-        'f5': ()=>{throw new Error(`Not implemented!`)},
-        'f6': ()=>{throw new Error(`Not implemented!`)},
-        'f7': ()=>{throw new Error(`Not implemented!`)},
-        'f8': ()=>{throw new Error(`Not implemented!`)},
-        'f9': ()=>{throw new Error(`Not implemented!`)},
-        'fa': ()=>{throw new Error(`Not implemented!`)},
-        'fb': ()=>{throw new Error(`Not implemented!`)},
-        'fc': ()=>{throw new Error(`Not implemented!`)},
-        'fd': ()=>{throw new Error(`Not implemented!`)},
+        'f4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'f5': ()=>{sp = sp - 2; mem.setWord(sp, af()); pc = pc + 1; return 16},
+        'f6': ()=>{r.a = or(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
+        'f7': ()=>{pc = pc + 1; call(0x30); return 16},
+        'f8': ()=>{hl(addWord(sp, mem.readSigned(pc + 1))); f.z = 0; pc = pc + 2; return 12},
+        'f9': ()=>{sp = hl(); pc = pc + 1; return 8},
+        'fa': ()=>{r.a = mem.readByte(mem.readWord(pc + 1)); pc = pc + 3; return 16},
+        'fb': ()=>{IME = 1; pc = pc + 1; runInterruptsFunction(); return 4;},
+        'fc': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'fd': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'fe': ()=>{sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
-        'ff': ()=>{throw new Error(`Not implemented!`)}    
+        'ff': ()=>{pc = pc + 1; call(0x38); return 16}    
     }
 
     let opcode = function (instr) {
