@@ -1,4 +1,4 @@
-let cpu = function (mem, runInterruptsFunction) {
+function z80 (mem, runInterruptsFunction) {
     "use strict";
     let debug = false
     let uniqueInstr = {}
@@ -6,16 +6,22 @@ let cpu = function (mem, runInterruptsFunction) {
     let sp = 0xFFFE
     let r = {a: 0, f: 0, b: 0, c: 0, d: 0, e: 0, h: 0, l: 0}
     let f = {z: 0, n: 0, h: 0, c: 0}
-    let af = function (val) {if (val && val > 0xFFFF) {throw new Error(`Can't set ${val} to af`)} if (val) {r.a = (val >> 8) & 0xFF; r.f = val & 0xFF;} return r.a << 8 | r.f}
-    let bc = function (val) {if (val && val > 0xFFFF) {throw new Error(`Can't set ${val} to bc`)} if (val) {r.b = (val >> 8) & 0xFF; r.c = val & 0xFF;} return r.b << 8 | r.c}
-    let de = function (val) {if (val && val > 0xFFFF) {throw new Error(`Can't set ${val} to de`)} if (val) {r.d = (val >> 8) & 0xFF; r.e = val & 0xFF;} return r.d << 8 | r.e}
-    let hl = function (val) {if (val && val > 0xFFFF) {throw new Error(`Can't set ${val} to hl`)} if (val) {r.h = (val >> 8) & 0xFF; r.l = val & 0xFF;} return r.h << 8 | r.l}
-    let syncFlags = function () {r.f = f.z << 7 | f.n << 6 | f.h << 5 | f.c << 4}
+    let syncFlagsToRegister = function () {r.f = ((f.z << 7) | (f.n << 6) | (f.h << 5) | (f.c << 4)) & 0xF0}
+    let syncRegisterToFlags = function () {
+        f.z = (r.f >> 7) & 0b1
+        f.n = (r.f >> 6) & 0b1
+        f.h = (r.f >> 5) & 0b1
+        f.c = (r.f >> 4) & 0b1
+    }
+    let af = function (val) {if (val !== undefined && val !== null && val > 0xFFFF) {throw new Error(`Can't set ${val} to af`)} if (val !== undefined && val !== null) {r.a = (val >> 8) & 0xFF; r.f = val & 0xF0;} syncRegisterToFlags(); return (r.a << 8) + r.f}
+    let bc = function (val) {if (val !== undefined && val !== null && val > 0xFFFF) {throw new Error(`Can't set ${val} to bc`)} if (val !== undefined && val !== null) {r.b = (val >> 8) & 0xFF; r.c = val & 0xFF;} return (r.b << 8) + r.c}
+    let de = function (val) {if (val !== undefined && val !== null && val > 0xFFFF) {throw new Error(`Can't set ${val} to de`)} if (val !== undefined && val !== null) {r.d = (val >> 8) & 0xFF; r.e = val & 0xFF;} return (r.d << 8) + r.e}
+    let hl = function (val) {if (val !== undefined && val !== null && val > 0xFFFF) {throw new Error(`Can't set ${val} to hl`)} if (val !== undefined && val !== null) {r.h = (val >> 8) & 0xFF; r.l = val & 0xFF;} return (r.h << 8) + r.l}
     let stopped = false
     let IME = false
 
     //Power up stuff (see http://bgb.bircd.org/pandocs.htm#powerupsequence)
-    af(0x01B0)
+    af(0x0100)
     bc(0x0013)
     de(0x00D8)
     hl(0x014D)
@@ -26,17 +32,22 @@ let cpu = function (mem, runInterruptsFunction) {
         for (let k in r) {
             newR[k] = r[k].toString(16)
         }
-        console.log("PC: " + pc.toString(16) + "  :  " + JSON.stringify(r) + "   :   " + JSON.stringify(newR))
+        console.log("PC: " + pc.toString(16) + " (opcode: " + mem.readByte(pc).toString(16) + ")  :  " + JSON.stringify(r) + "   :   " + JSON.stringify(newR) + "   :   next two bytes: " + mem.readByte(pc + 1).toString(16) + 
+        ", " + mem.readByte(pc + 2).toString(16))
     }
 
     let runCycles = function (n) {
-        while (n > 0 && !stopped) {
-            n = n - opcode(mem.readByte(pc))
-            syncFlags()
+        let cyclesRan = 0;
+        while (n >= 0 && !stopped) {
+            let num = opcode(mem.readByte(pc))
+            n = n - num
+            cyclesRan = cyclesRan + num
+            syncFlagsToRegister()
 
             //Just a sanity check - run through all registers and if any is above 0xFF then something went really wrong
-            for (let key in r) {if (r[key] > 0xFF) throw new Error(`Register ${key} has invalid value: ${r[key]}`)}
+            for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
         }
+        return cyclesRan
 
         //DEBUG
         // if (pc >= 0xE8) {
@@ -47,10 +58,10 @@ let cpu = function (mem, runInterruptsFunction) {
     let runCyclesUntil = function (n, when) {
         while (n > 0 && !stopped) {
             n = n - opcode(mem.readByte(pc))
-            syncFlags()
+            syncFlagsToRegister()
 
             //Just a sanity check - run through all registers and if any is above 0xFF then something went really wrong
-            for (let key in r) {if (r[key] > 0xFF) throw new Error(`Register ${key} has invalid value: ${r[key]}`)}
+            for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
 
             if (pc == when) {
                 logRegisters()
@@ -72,7 +83,7 @@ let cpu = function (mem, runInterruptsFunction) {
             case 3: valOrig = r.e; break;
             case 4: valOrig = r.h; break;
             case 5: valOrig = r.l; break;
-            case 6: valOrig = r.mem.readByte(hl()); cycles = 16; break;
+            case 6: valOrig = mem.readByte(hl()); cycles = 16; break;
             case 7: valOrig = r.a; break;
         }
 
@@ -81,33 +92,33 @@ let cpu = function (mem, runInterruptsFunction) {
         //Divide the instruction by 8 because there are 8 values we can operate on (b,c,d,e,h,l,(hl),a)
         //So there's basically X instructions times 8 values
         let op = instr / 8
-        if (op >= 0 && op <= 7) {
+        if ((op | 0) >= 0 && (op | 0) <= 7) {
             let c = op | 0
             f.n = 0; f.h = 0;
             switch (c) {
-                case 0: f.c = valOrig >> 7; valNew = valOrig << 1; break; //RLC - rotate left
-                case 1: f.c = valOrig & 1; valNew = valOrig >> 1; break; //RRC - rotate right
+                case 0: f.c = valOrig >> 7; valNew = (valOrig << 1) + f.c; break; //RLC - rotate left
+                case 1: f.c = valOrig & 1; valNew = (valOrig >> 1) + (f.c << 7); break; //RRC - rotate right
                 case 2: valNew = (valOrig << 1) + f.c; f.c = (valOrig >> 7) & 0b1; break; //RL - rotate left through carry
                 case 3: valNew = (valOrig >> 1) + (f.c << 7); f.c = valOrig & 1; break; //RR - rotate left through carry
                 case 4: f.c = valOrig >> 7; valNew = valOrig << 1; break; //SLA
                 case 5: f.c = valOrig & 1; valNew = (valOrig >> 1) | (valOrig & 0x80); break; //SRA
                 case 6: valNew = ((valOrig >> 4) | (valOrig << 4)) & 0xFF; f.c = 0; break; //SWAP
-                case 7: f.c = valOrig & 1; valNew = valOrig >> 1; break; //SRL
+                case 7: f.c = valOrig & 1; valNew = (valOrig >> 1); break; //SRL
             }
-            valNew = valNew & 0xFF
+            valNew = valNew % 256
             f.z = valNew == 0 ? 1 : 0
         } else if ((op | 0) >= 8 && (op | 0) <= 15) {
             //BIT
             f.h = 1; f.n = 0; f.z = ((valOrig & (1 << ((op | 0) - 8))) == 0) ? 1 : 0;
         } else if ((op | 0) >= 16 && (op | 0) <= 23) {
             //RES
-            valNew = valOrig ^ (1 << ((op | 0) - 16))
+            valNew = valOrig &~ (1 << ((op | 0) - 16))
         } else if ((op | 0) >= 24 && (op | 0) <= 31) {
             //SET
             valNew = valOrig | (1 << ((op | 0) - 24))
         }
 
-        valNew = valNew & 0xFF
+        valNew = valNew % 256
 
         switch (instr % 8) {
             case 0: r.b = valNew; break;
@@ -125,23 +136,66 @@ let cpu = function (mem, runInterruptsFunction) {
     let xor = (a, b) => {if ((a ^ b) == 0) {f.z = 1} else {f.z = 0} f.n = 0; f.c = 0; f.h = 0; return a ^ b}
     let or = (a, b) => {if ((a | b) == 0) {f.z = 1} else {f.z = 0} f.n = 0; f.c = 0; f.h = 0; return a | b}
     let and = (a, b) => {f.n = 0; f.h = 1; f.c = 0; if ((a & b) == 0) {f.z = 1} else {f.z = 0} return a & b}
-    let incByte = (a) => {f.n = 0; f.h = 0; f.z = 0; if (a == 0xFF) {f.h = 1; f.z = 1; return 0} if (a % 16 == 15) {f.h = 1} return a + 1}
-    let decByte = (a) => {f.n = 1; f.h = 0; if (a == 0) {f.h = 1; f.z = 0; return 0xFF} if (a == 1) {f.z = 1; return 0} f.z = 0; if (a % 16 == 0) {f.h = 1} return a - 1}
+    let incByte = (a) => {
+        f.n = 0; 
+        f.h = 0; 
+        if (a >= 0xFF) {
+            f.h = 1; 
+            f.z = 1; 
+            return 0
+        }
+        f.z = 0;
+        if ((a % 16) == 15) {
+            f.h = 1
+        } 
+        return a + 1
+    }
+    let decByte = (a) => {
+        f.n = 1; 
+        f.h = 0; 
+        if (a == 0) {
+            f.h = 1; 
+            f.z = 0; 
+            return 0xFF
+        } 
+        if (a == 1) {
+            f.z = 1; 
+            return 0
+        } 
+        f.z = 0; 
+        if (a % 16 == 0) {
+            f.h = 1
+        } 
+        return a - 1
+    }
     let sbc = (a, b) => {return sub(a, b + f.c)}
-    let sub = (a, b) => {f.n = 1; let res = a - b; f.c = res < 0 ? 1 : 0; f.z = res == 0 ? 1 : 0; f.h = (a & 0xF) - (b & 0xF) < 0 ? 1 : 0; return Math.abs(res)}
-    let add = (a, b) => {f.n = 0; let res = a + b; f.c = res > 255 ? 1 : 0; f.z = (res % 256) == 0 ? 1 : 0; f.h = (a & 0xF) + (b & 0xF) > 0xF ? 1 : 0; return res % 256}
+    let sub = (a, b) => {f.n = 1; let res = a - b; f.c = res < 0 ? 1 : 0; f.z = res == 0 ? 1 : 0; f.h = (a % 0x10) - (b % 0x10) < 0 ? 1 : 0; return (res + 256) % 256}
+    let add = (a, b) => {
+        f.n = 0; 
+        let res = a + b; 
+        f.c = res > 255 ? 1 : 0; 
+        f.z = (res % 256) == 0 ? 1 : 0; 
+        f.h = ((a % 0x10) + (b % 0x10)) > 0xF ? 1 : 0; 
+        return res % 256}
     let adc = (a, b) => {return add(a, b + f.c)}
-    let addWord = (a, b) => {f.n = 0; let res = a + b; f.c = res > 0xFFFF ? 1 : 0; f.h = (a & 0xFFF) + (b & 0xFFF) > 0xFFF ? 1 : 0; return res % 0x10000}
+    let addWord = (a, b) => {
+        f.n = 0;
+        if (b < 0) {b = b + 0x10000}
+        let res = a + b; 
+        f.c = (res > 0xFFFF) ? 1 : 0; 
+        f.h = (a % 0x1000) + (b % 0x1000) > 0xFFF ? 1 : 0; 
+        return res % 0x10000
+    }
     let call = (addr) => {if (sp == 0) {throw new Error(`SP going lower than 0.`)} sp = sp - 2; mem.setWord(sp, pc); pc = addr}
 
     let opcodes = {
-        '0': ()=>{pc = pc + 1; debugger; return 4;},
+        '0': ()=>{pc = pc + 1; return 4;},
         '1': ()=>{bc(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '2': ()=>{mem.setByte(bc(), r.a); pc = pc + 1; return 8},
-        '3': ()=>{if (bc() == 0xFFFF) {bc(0)} else {bc(bc() + 1)} pc = pc + 1; return 8},
+        '3': ()=>{let val = bc(); if (val == 0xFFFF) {bc(0)} else {bc(val + 1)} pc = pc + 1; return 8},
         '4': ()=>{r.b = incByte(r.b); pc = pc + 1; return 4},
         '5': ()=>{r.b = decByte(r.b); pc = pc + 1; return 4},
-        '6': ()=>{r.b = mem.readByte(pc + 1); pc = pc + 2; return 8},
+        '6': ()=>{pc = pc + 1; r.b = mem.readByte(pc); pc = pc + 1; return 8},
         '7': ()=>{cb(7); pc = pc + 1; return 4},
         '8': ()=>{mem.setWord(mem.readWord(pc + 1), sp); pc = pc + 3; return 20},
         '9': ()=>{hl(addWord(hl(), bc())); pc = pc + 1; return 8},
@@ -167,7 +221,17 @@ let cpu = function (mem, runInterruptsFunction) {
         '1d': ()=>{r.e = decByte(r.e); pc = pc + 1; return 4},
         '1e': ()=>{r.e = mem.readByte(pc + 1); pc = pc + 2; return 8},
         '1f': ()=>{cb(31); pc = pc + 1; return 4},
-        '20': ()=>{if (f.z == 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
+        '20': ()=>{
+            if (f.z == 0) {
+                pc = pc + 1; 
+                let val = mem.readSigned(pc); 
+                pc = (pc|0) + (val|0) + (1|0); 
+                return 12;
+            } else {
+                pc = pc + 2; 
+                return 8;
+            }
+        },
         '21': ()=>{hl(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '22': ()=>{mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) } pc = pc + 1; return 8},
         '23': ()=>{if (hl() == 0xFFFF) {hl(0)} else {hl(hl() + 1)} pc = pc + 1; return 8},
@@ -179,17 +243,37 @@ let cpu = function (mem, runInterruptsFunction) {
             //This is intended to be used after addition/substraction
             //The reason we have to adjust it is to handle overflows/underflows 
             //See: https://forums.nesdev.com/viewtopic.php?f=20&t=15944#p196282
-            if (!f.n) {
-                //addition
-                if (f.c || r.a > 0x99) {r.a = r.a + 0x60; f.c = 1}
-                if (f.h || (r.a & 0xF) > 0x9) {r.a = r.a + 0x6}
+            // if (!f.n) {
+            //     //addition
+            //     if (f.c || (r.a > 0x99)) {r.a = r.a + 0x60; f.c = 1}
+            //     if (f.h || (r.a & 0xF) > 0x9) {r.a = r.a + 0x6}
+            // } else {
+            //     //substraction
+            //     if (f.c) {r.a = r.a - 0x60}
+            //     if (f.h) {r.a = r.a - 0x6}
+            // }
+            // r.a = r.a % 256
+            // // f.z = r.a == 0 ? 1 : 0
+            // // f.h = 0
+            let upper = r.a >> 4; 
+            let lower = (r.a|0) % 16 |0;
+            if(!f.n){
+                if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
+                else if(!f.c & !f.h & (upper|0) <= 8 & (lower|0) >= 10){f.c = 0; r.a = r.a + 0x06 |0}
+                else if(!f.c & f.h & (upper|0) <= 9 & (lower|0) <= 3){f.c = 0; r.a = r.a + 0x06 |0}
+                else if(!f.c & !f.h & (upper|0) >= 10 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
+                else if(!f.c & !f.h & (upper|0) >= 9 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
+                else if(!f.c & f.h & (upper|0) >= 10 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
+                else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
+                else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
+                else if(f.c & f.h & (upper|0) <= 3 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
             } else {
-                //substraction
-                if (f.c) {r.a = r.a - 0x60}
-                if (f.h) {r.a = r.a - 0x6}
+                if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
+                else if(!f.c & f.h & (upper|0) <= 8 & (lower|0) >= 6){f.c = 0; r.a = r.a + 0xFA |0}
+                else if(f.c & !f.h & (upper|0) >= 7 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0xA0 |0}
+                else if(f.c & f.h & (upper|0) >= 6 & (lower|0) >= 6){f.c = 1; r.a = r.a + 0x9A |0}
             }
-            f.z = r.a == 0 ? 1 : 0
-            f.h = 0
+            r.a = (r.a|0) % 256 |0;
             pc = pc + 1
             return 4
         },
@@ -385,7 +469,12 @@ let cpu = function (mem, runInterruptsFunction) {
         'e5': ()=>{sp = sp - 2; mem.setWord(sp, hl()); pc = pc + 1; return 16},
         'e6': ()=>{r.a = and(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'e7': ()=>{pc = pc + 1; call(0x20); return 16},
-        'e8': ()=>{sp = addWord(sp, mem.readSigned(pc + 1)); if (sp < 0) {throw new Error(`Apparently there's an edge case you have to cover?`)} f.z = 0; pc = pc + 2; return 16},
+        'e8': ()=>{
+            sp = addWord(sp, mem.readSigned(pc + 1)); 
+            sp = (sp + 0x10000) % 0x10000; 
+            f.z = 0;
+            pc = pc + 2; 
+            return 16},
         'e9': ()=>{pc = hl(); return 4},
         'ea': ()=>{mem.setByte(mem.readWord(pc + 1), r.a); pc = pc + 3; return 16},
         'eb': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
@@ -410,22 +499,23 @@ let cpu = function (mem, runInterruptsFunction) {
         'fe': ()=>{sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'ff': ()=>{pc = pc + 1; call(0x38); return 16}    
     }
-
+    let lastInstr = 0;
     let opcode = function (instr) {
-        // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}`)
+        // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
         // if (pc === 0x6a) {
         //     console.log(`C: ${r.c.toString(16)}`)
         // }
         // if (pc === 0x6d) {
         //     console.log(`E: ${r.e.toString(16)}`)
         // }
-        uniqueInstr[instr.toString(16)] = 1
+        lastInstr = instr.toString(16)
+        // uniqueInstr[instr.toString(16)] = 1
         if (pc == 0xa7) {
             // throw new Error(`graphics done: ${JSON.stringify(uniqueInstr)}`)
         }
         try {
             if (opcodes[instr.toString(16).toLowerCase()]) return opcodes[instr.toString(16).toLowerCase()]()
-        } catch (e) {throw new Error(`Instr ${instr.toString(16).toLowerCase()} error: ${e.toString()}; PC: ${pc.toString(16)}`)}
+        } catch (e) {throw new Error(`Instr ${instr.toString(16).toLowerCase()} error: ${e.toString()}; PC: ${pc.toString(16)}; FULL: ${e.stack}`)}
     }
 
     let interrupt = (addr) => {
@@ -441,7 +531,7 @@ let cpu = function (mem, runInterruptsFunction) {
 
     let step = () => {
         opcode(mem.readByte(pc))
-        syncFlags()
+        syncFlagsToRegister()
         logRegisters()
     }
 
@@ -449,8 +539,9 @@ let cpu = function (mem, runInterruptsFunction) {
         runCycles: runCycles,
         interrupt: interrupt,
         step: step,
-        runCyclesUntil: runCyclesUntil
+        runCyclesUntil: runCyclesUntil,
+        getRegisters: () => {
+            return {lastInstr: lastInstr, sp: sp, ...r}
+        }
     }
 }
-
-module.exports = cpu

@@ -12,58 +12,87 @@
                 <canvas id="tiles" width="128" height="192"></canvas>
             </div>
         </div>
+        <script src="res/tetrisRom.js"></script>
+        <script src="cpu.js"></script>
+        <script src="emu.js"></script>
+
         <script>
-        (()=>{
-            const { ipcRenderer } = require("electron")
-            const {webFrame} = require("electron")
-            // Set the zoom factor to 200%
-            webFrame.setZoomFactor(2);
+            //Start emulation
+            var gameboy = emu()
+        // (()=>{
+        //     const { ipcRenderer } = require("electron")
+        //     const {webFrame} = require("electron")
+        //     // Set the zoom factor to 200%
+        //     webFrame.setZoomFactor(2);
 
-            let bgMap = document.getElementById("tiles")
-            let buffer = document.createElement("canvas"); buffer.width = bgMap.width; buffer.height = bgMap.height;
-            let bgMapCtx = bgMap.getContext("2d")
-            let bufferCtx = buffer.getContext("2d")
-            ipcRenderer.on("gpuTiles", (event, arg) => {
-                //arg is an array with rgb values for the tilemap (whole 0x8000 - 0x97FF) - translate it to a canvas
-                for (let k = 0; k < 24; k++) { //draw 24 rows of tiles
-                    for (let i = 0; i < 16; i++) { //draw 16 tiles in one row
-                        tile = arg[k * 16 + i] //tile is an array of lines (arrays), each holding rgb info ([[`rgb(0,0,0)`, `rgb(0,0,0`)...], [`rgb(0, 0, 0 ), `rgb(0,0,0`)...]])
-                        tile.forEach((line, j) => {
-                            let baseX = i * 8
-                            let baseY = k * 8
-                            line.forEach((px, z)=> {
-                                let x = baseX + z; let y = baseY + j;
-                                bufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
-                                bufferCtx.fillRect(x, y, 1, 1)
-                            })
-                        })
-                    }
-                }
-                bgMapCtx.drawImage(buffer, 0, 0)
-            })
+        //     var bgMap = document.getElementById("tiles")
+        //     var buffer = document.createElement("canvas"); buffer.width = bgMap.width; buffer.height = bgMap.height;
+        //     var bgMapCtx = bgMap.getContext("2d")
+        //     var bufferCtx = buffer.getContext("2d")
+        //     ipcRenderer.on("gpuTiles", (event, arg) => {
+        //         //arg is an array with rgb values for the tilemap (whole 0x8000 - 0x97FF) - translate it to a canvas
+        //         for (var k = 0; k < 24; k++) { //draw 24 rows of tiles
+        //             for (var i = 0; i < 16; i++) { //draw 16 tiles in one row
+        //                 tile = arg[k * 16 + i] //tile is an array of lines (arrays), each holding rgb info ([[`rgb(0,0,0)`, `rgb(0,0,0`)...], [`rgb(0, 0, 0 ), `rgb(0,0,0`)...]])
+        //                 tile.forEach((line, j) => {
+        //                     var baseX = i * 8
+        //                     var baseY = k * 8
+        //                     line.forEach((px, z)=> {
+        //                         var x = baseX + z; var y = baseY + j;
+        //                         bufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+        //                         bufferCtx.fillRect(x, y, 1, 1)
+        //                     })
+        //                 })
+        //             }
+        //         }
+        //         bgMapCtx.drawImage(buffer, 0, 0)
+        //     })
 
-            let gameCanvas = document.getElementById("game")
-            let gameCanvasCtx = gameCanvas.getContext("2d")
-            let frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
-            let frameBufferCtx = frameBuffer.getContext("2d")
-            ipcRenderer.on("framePixels", (event, pixels) => {
-                let j = -1;
-                pixels.forEach((px, i) => {
-                    if (i % 160 === 0) {j++}
-                    frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
-                    frameBufferCtx.fillRect(i % 160, j, 1, 1)
+        //     var gameCanvas = document.getElementById("game")
+        //     var gameCanvasCtx = gameCanvas.getContext("2d")
+        //     var frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
+        //     var frameBufferCtx = frameBuffer.getContext("2d")
+        //     ipcRenderer.on("framePixels", (event, pixels) => {
+        //         var j = -1;
+        //         pixels.forEach((px, i) => {
+        //             if (i % 160 === 0) {j++}
+        //             frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+        //             frameBufferCtx.fillRect(i % 160, j, 1, 1)
+        //         })
+        //         gameCanvasCtx.drawImage(frameBuffer, 0, 0)
+        //     })
+
+        //     document.body.onkeypress = (ev) => {
+        //         ipcRenderer.send("asynchronous-message", ev.key);
+        //     }
+
+        //     (()=>{
+        //         ipcRenderer.send("asynchronous-message", "start");                
+        //     })()
+        // })()
+        
+        
+        document.addEventListener("DOMContentLoaded", function(){
+        // Handler when the DOM is fully loaded
+            var gameCanvas = document.getElementById("game")
+            var gameCanvasCtx = gameCanvas.getContext("2d")
+            var frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
+            var frameBufferCtx = frameBuffer.getContext("2d")
+        
+            window.displayPixels  = function (rows) {
+            
+                rows.forEach((pixels, j) => {
+                    pixels.forEach((px, i) => {
+                        frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+                        frameBufferCtx.fillRect(i % 160, j, 1, 1)
+                    })
                 })
+                
                 gameCanvasCtx.drawImage(frameBuffer, 0, 0)
-            })
-
-            document.body.onkeypress = (ev) => {
-                ipcRenderer.send("asynchronous-message", ev.key);
             }
+        });
 
-            (()=>{
-                ipcRenderer.send("asynchronous-message", "start");                
-            })()
-        })()
+        
         </script>
     </body>
 </html>

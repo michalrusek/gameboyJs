@@ -6,7 +6,7 @@ const emu = require('./emu')
 let win;
 let emuO;
 let STEP_THROUGH = false;
-let breakPoint = 0x27;
+let breakPoint = 0xcb35;
 
 function createWindow () {
   // Create the browser window.
