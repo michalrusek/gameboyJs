@@ -1,30 +1,29 @@
-var STEP_THROUGH = false
+let STEP_THROUGH = false
 
-var emu = function () {
+let emu = function () {
     //1. Read boot rom and game
-    // var bootRom = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "DMG_ROM.bin")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Tetris (JUE) (V1.1) [!].gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Super Mario Land (JUE) (V1.1) [!].gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "01-special.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "02-interrupts.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "03-op sp,hl.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "04-op r,imm.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "05-op rp.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "06-ld r,r.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "07-jr,jp,call,ret,rst.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "08-misc instrs.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "09-op r,r.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "10-bit ops.gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "11-op a,(hl).gb")))
-    // var game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "daa.gb")))
-    var game = tetrisRom
+    // let bootRom = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "DMG_ROM.bin")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Tetris (JUE) (V1.1) [!].gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Super Mario Land (JUE) (V1.1) [!].gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "01-special.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "02-interrupts.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "03-op sp,hl.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "04-op r,imm.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "05-op rp.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "06-ld r,r.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "07-jr,jp,call,ret,rst.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "08-misc instrs.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "09-op r,r.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "10-bit ops.gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "11-op a,(hl).gb")))
+    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "daa.gb")))
+    let game = tetrisRom
 
     
-    var vramChanged = false
-    var tetrisHack = true
+    let tetrisHack = true
 
     //2. Initialize memory (also see http://bgb.bircd.org/pandocs.htm#powerupsequence)
-    var mem = (function () {
+    let mem = (function () {
         /*
         0000	3FFF	16KB ROM bank 00	    From cartridge, usually a fixed bank
         4000	7FFF	16KB ROM Bank 01~NN	    From cartridge, switchable bank via MBC (if any)
@@ -43,11 +42,11 @@ var emu = function () {
         FF80	FFFE	                        High RAM (HRAM)	
         FFFF	FFFF	                        Interrupts Enable Register (IE)	
         */
-       var memory = new Uint8Array(0xFFFF + 1)
-       for (var i = 0; i < 0x10000; i++) {
+       let memory = new Uint8Array(0xFFFF + 1)
+       for (let i = 0; i < 0x10000; i++) {
            memory[i] = 0
        }
-       var adjust = (addr) => {
+       let adjust = (addr) => {
            if (addr >= 0xE000 && addr <= 0xFDFF) {addr = addr - 0x2000} return addr
         }
        return {
@@ -65,10 +64,6 @@ var emu = function () {
                         return
                 }
                 addr = adjust(addr); memory[addr] = val & 0xFF
-                if (addr >= 0x8000 && addr < 0x9800) {
-                    vramChanged = true
-                    // gpu.tileChanged(addr)
-                };
             },
            readSigned: (addr) => {addr = adjust(addr); return memory[addr] >= 128 ? memory[addr] - 256 : memory[addr]},
            readWord: (addr) => {addr = adjust(addr); return (memory[addr] + (memory[addr + 1] << 8))},
@@ -78,37 +73,6 @@ var emu = function () {
             }
        }
     })()
-    mem.setByte(0xFF05, 0x00)
-    mem.setByte(0xFF06, 0x00)
-    mem.setByte(0xFF07, 0x00)
-    mem.setByte(0xFF10, 0x80)
-    mem.setByte(0xFF11, 0xBF)
-    mem.setByte(0xFF12, 0xF3)
-    mem.setByte(0xFF14, 0xBF)
-    mem.setByte(0xFF16, 0x3F)
-    mem.setByte(0xFF17, 0x00)
-    mem.setByte(0xFF19, 0xBF)
-    mem.setByte(0xFF1A, 0x7F)
-    mem.setByte(0xFF1B, 0xFF)
-    mem.setByte(0xFF1C, 0x9F)
-    mem.setByte(0xFF1E, 0xBF)
-    mem.setByte(0xFF20, 0xFF)
-    mem.setByte(0xFF21, 0x00)
-    mem.setByte(0xFF22, 0x00)
-    mem.setByte(0xFF23, 0xBF)
-    mem.setByte(0xFF24, 0x77)
-    mem.setByte(0xFF25, 0xF3)
-    mem.setByte(0xFF26, 0xF1)
-    mem.setByte(0xFF40, 0x91)
-    mem.setByte(0xFF42, 0x00)
-    mem.setByte(0xFF43, 0x00)
-    mem.setByte(0xFF45, 0x00)
-    mem.setByte(0xFF47, 0xFC)
-    mem.setByte(0xFF48, 0xFF)
-    mem.setByte(0xFF49, 0xFF)
-    mem.setByte(0xFF4A, 0x00)
-    mem.setByte(0xFF4B, 0x00)
-    mem.setByte(0xFFFF, 0x00)
     mem.setByte(0xFF50, 0x01) //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
 
     //4a. Read game into memory
@@ -117,25 +81,20 @@ var emu = function () {
         mem.setByte(index, val)
     })
 
-    //4b. Read GB bios into memory
-    // bootRom.forEach((val, index) => {
-    //     mem.setByte(index, val)
-    // })
+    let interrupts = (()=>{
 
-    var interrupts = (()=>{
-
-        var run = () => {
+        let run = () => {
             //TODO: Implement the rest of the interrupts
-            var iflag = mem.readByte(0xFF0F); var ienabled = mem.readByte(0xFFFF)
+            let iflag = mem.readByte(0xFF0F); let ienabled = mem.readByte(0xFFFF)
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
             if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {iflag = iflag ^ 0b10}
             if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
             mem.setByte(0xFF0F, iflag)
         }
 
-        var vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1); run()}
-        var lcd = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10); run()}
-        var timer = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b100); run()}
+        let vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1); run()}
+        let lcd = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10); run()}
+        let timer = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b100); run()}
         return {
             vblank: vblank,
             lcd: lcd,
@@ -145,50 +104,71 @@ var emu = function () {
     })()
 
     //Initialize CPU
-    var cpu = z80(mem, ()=>{interrupts.run()})
+    let cpu = z80(mem, ()=>{interrupts.run()})
 
     //GPU
-    var gpu = (() => {
-        var tiles = [] // 384 tiles - each tile is [0..7] of [0..7] (8 rows of 8 pixels each)
-        var frame = new Array(144); for (var i = 0; i < 144; i++) {frame[i] = new Array(160)}
-        var bgMapPixels = new Array(256); for (var i = 0; i < 256; i++) {bgMapPixels[i] = new Uint8Array(256)}
-        var vstat = 0; var hstat = 0;
-        var getLine = (a, b) => {
-            a = a.toString(2).substring(a.length - 8).padStart(8, "0").split("")
-            b = b.toString(2).substring(b.length - 8).padStart(8, "0").split("")
-            return a.map((v, i) => {var num = parseInt(v + b[i], 2); return num ? 255/num : 0})
+    let gpu = (() => {
+        let tiles = new Array(384); for (let i = 0; i < 384; i++) {let t = new Array(8); for (let j = 0; j < 8; j++) {t[j] = new Array(8)}; tiles[i] = t} // 384 tiles - each tile is [0..7] of [0..7] (8 rows of 8 pixels each)
+        let frame = new Array(144); for (let i = 0; i < 144; i++) {frame[i] = new Array(160)}
+        let bgMapPixels = new Array(256); for (let i = 0; i < 256; i++) {bgMapPixels[i] = new Uint8Array(256)}
+        let vstat = 0; let hstat = 0;
+        let palette = [
+            0xFF, //0
+            0xCC, //1
+            0x66, //2
+            0x00, //4
+        ]
+        let getLine = (a, b) => {
+            a = a.toString(2).padStart(8, "0").split("")
+            b = b.toString(2).padStart(8, "0").split("")
+            return a.map((v, i) => {let num = parseInt(v + b[i], 2); return palette[num]})
+        }
+        
+        let refreshPalette = () => {
+            let p = mem.readByte(0xFF47).toString(2).padStart(8, "0").split("").reverse().join("");
+            for (let i = 0; i < 8; i = i + 2) {
+                let n = parseInt(p[i] + p[i + 1], 2)
+                switch (n) {
+                    case 0: palette[Math.floor(i/2)] = 0xFF; break;
+                    case 1: palette[Math.floor(i/2)] = 0xCC; break;
+                    case 2: palette[Math.floor(i/2)] = 0x66; break;
+                    case 3: palette[Math.floor(i/2)] = 0x00; break;
+                }
+            }
         }
 
         //TODO: Throw this into a process; this can happen whenever and could be resource intensive
-        var recalcTiles = () => {
-            tiles = []
-            for (var i = 0x8000; i < 0x9800; i = i + 16) {
-                var lines = []
+        let recalcTiles = () => {
+            refreshPalette()
+
+            let z = 0;
+            for (let i = 0x8000; i < 0x9800; i = i + 16) {
                 for (j = 0; j < 16; j = j + 2) {
-                    var topByte = mem.readByte(i + j); var botByte = mem.readByte(i + j + 1); var line = getLine(botByte, topByte); lines.push(line);
+                    let topByte = mem.readByte(i + j); 
+                    let botByte = mem.readByte(i + j + 1); 
+                    tiles[z][Math.floor(j/2)] = getLine(botByte, topByte); 
                 }
-                tiles.push(lines)
+                z++
             }
 
-            //TODO: Check how often this should really happen (probably with each write to VRAM or something)
-            
+            updateBgMap()            
         }
 
-        var updateBgMap = () => {
+        let updateBgMap = () => {
             //1. Read BGMap from memory (32x32 tiles)
-            var bgTiles = []
+            let bgTiles = []
             if (tiles.length == 0) {return}
-            for (var i = 0x9800; i < 0x9C00; i++) {bgTiles.push(mem.readByte(i))}
+            for (let i = 0x9800; i < 0x9C00; i++) {bgTiles.push(mem.readByte(i))}
 
             //2. Throw it into bgMapPixels array (256 x 256 (32 * 8 = 256))
-            for (var i = 0; i < 32; i++) {
-                for (var j = 0; j < 32; j++) {
+            for (let i = 0; i < 32; i++) {
+                for (let j = 0; j < 32; j++) {
                     //TODO: Implement addressing tiles as -127 to 127 as well
-                    var tileToWrite = tiles[bgTiles[i * 32 + j]]
+                    let tileToWrite = tiles[bgTiles[i * 32 + j]]
                     tileToWrite.forEach((row, y) => {
                         row.forEach((pixel, x) => {
-                            var bgX = j * 8 + x;
-                            var bgY = i * 8 + y;
+                            let bgX = j * 8 + x;
+                            let bgY = i * 8 + y;
                             bgMapPixels[bgY][bgX] = pixel;
                             
                         })
@@ -197,60 +177,28 @@ var emu = function () {
             }
         }
 
-        var drawLine = (lineNo) => {
-            // if (mem.readByte(0xFF40) & 1) {
-                updateBgMap()
-                var line = new Array(256)
+        let drawLine = (lineNo) => {
+            if (mem.readByte(0xFF40) & 1) {
                 //BGMap
                 //TODO: Check if BG should be drawn (LCDC bit 0?)
                 //1. Read scroll positions
-                var scy = mem.readByte(0xFF42); var scx = mem.readByte(0xFF43)
-                var bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY % 0xFF}
+                let scy = mem.readByte(0xFF42); let scx = mem.readByte(0xFF43)
+                let bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY % 0xFF}
                 //2. Draw scrollX + lineNo
-                for (var i = 0; i < 160; i++) {
-                    var bgX = scx + i; if (bgX > 0xFF) {bgX = bgX % 0xFF}
+                for (let i = 0; i < 160; i++) {
+                    let bgX = scx + i; if (bgX > 0xFF) {bgX = bgX % 0xFF}
                     frame[lineNo][i] = bgMapPixels[bgY][bgX]
                 }
-            // }
+            }
 
             //TODO: WINDOW
 
             //TODO: SPRITES
         }
 
-        //TODO: Throw this into a process if it's too expensive; this can be offloaded and then only the data can be sent to renderer
-        // var update = () => {
-        //     //TODO: FINISH THIS UP
-            
-
-        //     if (vstat == mem.readByte(0xFF45)) {
-        //         interrupts.lcd()
-        //     }
-
-        //     if (vstat < 144) {
-        //         if (hstat == 1) {
-        //             // if (mem.readByte(0xFF40) & 128) {
-        //                 drawLine(vstat)
-        //             // }
-        //         } else if(hstat == 4){hstat = -1; vstat++;}
-        //     } else {
-        //         if (vstat === 144 && hstat == 0) {
-        //             interrupts.vblank()
-        //         }
-        //         if(hstat == 4){hstat = -1; vstat++;}
-        //         if (vstat === 154) {
-        //             vstat = 0;
-        //         }
-        //     }
-
-        //     mem.setByte(0xFF44, vstat)
-
-        //     hstat++
-        // }
-
-        var lcdstat = mem.readByte(0xFF41);
+        let lcdstat = mem.readByte(0xFF41);
         //TODO: MAke your own!
-        var update = () => {
+        let update = () => {
             if(vstat == mem.readByte(0xFF45)){ // LYC == LY ?
                 lcdstat |= 4;
                 if(hstat == 0 && lcdstat & 64){interrupts.lcd()};
@@ -293,37 +241,25 @@ var emu = function () {
              hstat++;
         }
 
-        // var tileChanged = (addr) => {
-        //     //Tile number
-        //     var tileNo = Math.floor((addr - 0x8000) / 16)
-        //     var lineNo = Math.floor(((addr - 0x8000)) % 16 / 2)
-            
-        //     tiles[tileNo][lineNo] = getLine(
-        //         mem.readByte(addr % 2 ? addr : addr - 1), 
-        //         mem.readByte(addr % 2 ? addr : addr + 1)
-        //     )
-        // }
-
         return {
             update: update,
             recalcTiles: recalcTiles,
             getTiles: () => tiles,
-            getFrame: () => frame//,
-            // tileChanged: tileChanged
+            getFrame: () => frame
         }
     })()
 
-    var timers = (()=>{
-        var dividerClock = 0; var timerClock = 0;
+    let timers = (()=>{
+        let dividerClock = 0; let timerClock = 0;
         const divAddr = 0xFF04; 
         const timaAddr = 0xFF05;
         const tmaAddr = 0xFF06;
         const tacAddr = 0xFF07;
 
-        var update = (n) => {
+        let update = (n) => {
             //Divider always updates
             dividerClock = dividerClock + n
-            if (dividerClock >= 257) {dividerClock = dividerClock % 257; var divider = mem.readByte(divAddr); if (divider == 0xFF) {mem.setByte(divAddr, 0)} else {mem.setByte(divAddr, divider + 1)}}
+            if (dividerClock >= 257) {dividerClock = dividerClock % 257; let divider = mem.readByte(divAddr); if (divider == 0xFF) {mem.setByte(divAddr, 0)} else {mem.setByte(divAddr, divider + 1)}}
             
             //Timer only updates if it's enabled
             //TAC:
@@ -335,12 +271,12 @@ var emu = function () {
             //      11: CPU Clock / 256  (DMG, CGB:  16384 Hz, SGB:  ~16780 Hz)
             //(also see: https://gbdev.gg8.se/wiki/articles/Timer_and_Divider_Registers)
 
-            var tac = mem.readByte(tacAddr)
+            let tac = mem.readByte(tacAddr)
             if (tac & 0b100) {
                 timerClock = timerClock + n
                 //There are 4 modes for the times sitting in TAC - they control how many CPU clocks should amount to + 1 on the timer
                 //(see Input Clock Select in TAC)
-                var d = 0
+                let d = 0
                 switch (tac & 0b11) {
                     case 0: d = 1024; break;
                     case 1: d = 16; break;
@@ -349,7 +285,7 @@ var emu = function () {
                 }
                 while (timerClock >= d) {
                     //Add one
-                    var tima = mem.readByte(timaAddr)
+                    let tima = mem.readByte(timaAddr)
                     if (tima == 0xFF) {
                         //If we're overflowing - run interrupts and load TMA into TIMA
                         interrupts.timer()
@@ -368,29 +304,20 @@ var emu = function () {
     })()
 
     //5. Start emulation
-    var time = (new Date()).getTime()
-    var we = 0;
+    let time = (new Date()).getTime()
 
-    var loop = function () {
+    gpu.recalcTiles()
+    let loop = function () {
         requestAnimationFrame(loop.bind(this))
         
-        if (vramChanged) {
-            if (we == 4) {
-                gpu.recalcTiles()
-                we = 0
-            }
-            we++
-            // window.webContents.send('gpuTiles', gpu.getTiles()) 
-            vramChanged = false
-        }
-        // window.webContents.send('framePixels', gpu.getFrame())
+        gpu.recalcTiles()
         if (window.displayPixels) {
             window.displayPixels(gpu.getFrame())
         }
         try{
             if (!this.paused) {
                 //4,213,440 CPU ticks each second, 154 scanlines per frame - draw 2 frames
-                for (var i = 0; i < 154 * 4; i++) {
+                for (let i = 0; i < 154 * 4; i++) {
                     cpu.runCycles(114)
                     gpu.update()
                     timers.update(114)
@@ -403,8 +330,8 @@ var emu = function () {
         console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
     }
 
-    // var loopUntil = (when) => {
-    //     var stop = false
+    // let loopUntil = (when) => {
+    //     let stop = false
         
     //     gpu.recalcTiles()
     //     window.webContents.send('gpuTiles', gpu.getTiles()) 
@@ -417,7 +344,7 @@ var emu = function () {
     //     }
     // }
 
-    // var step = () => {
+    // let step = () => {
     //     cpu.step()
     //     gpu.recalcTiles()
     //     window.webContents.send('gpuTiles', gpu.getTiles()) 

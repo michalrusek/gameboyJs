@@ -83,7 +83,7 @@
             
                 rows.forEach((pixels, j) => {
                     pixels.forEach((px, i) => {
-                        frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
+                        frameBufferCtx.fillStyle = `rgb(${px}, ${px}, ${px})`
                         frameBufferCtx.fillRect(i % 160, j, 1, 1)
                     })
                 })
