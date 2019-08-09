@@ -80,15 +80,21 @@
             var frameBufferCtx = frameBuffer.getContext("2d")
         
             window.displayPixels  = function (rows) {
-            
-                rows.forEach((pixels, j) => {
-                    pixels.forEach((px, i) => {
-                        frameBufferCtx.fillStyle = `rgb(${px}, ${px}, ${px})`
-                        frameBufferCtx.fillRect(i % 160, j, 1, 1)
-                    })
-                })
                 
-                gameCanvasCtx.drawImage(frameBuffer, 0, 0)
+                let id = gameCanvasCtx.getImageData(0, 0, 160, 144)
+                let pixlos = id.data
+                w = 0
+                for (let j = 0; j < 144; j++) {
+                    for (let i = 0; i < 160; i++) {
+                        let px = rows[j][i]
+                        pixlos[w] = px
+                        pixlos[w + 1] = px
+                        pixlos[w + 2] = px
+                        pixlos[w + 3] = 0xFF
+                        w += 4
+                    }
+                }
+                gameCanvasCtx.putImageData(id, 0, 0)
             }
         });
 
