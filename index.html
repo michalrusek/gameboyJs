@@ -3,15 +3,15 @@
         <div>
             GAME:<br/>
             <div>
-                <canvas id="game" width="160" height="144"></canvas>
+                <canvas id="game" width="160" height="144" style="transform: scale(4); transform-origin: top left;"></canvas>
             </div>
         </div>
-        <div>
+        <!-- <div>
             TILES:<br/>
             <div>
                 <canvas id="tiles" width="128" height="192"></canvas>
             </div>
-        </div>
+        </div> -->
         <script src="res/tetrisRom.js"></script>
         <script src="cpu.js"></script>
         <script src="emu.js"></script>
@@ -76,8 +76,6 @@
         // Handler when the DOM is fully loaded
             var gameCanvas = document.getElementById("game")
             var gameCanvasCtx = gameCanvas.getContext("2d")
-            var frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
-            var frameBufferCtx = frameBuffer.getContext("2d")
         
             window.displayPixels  = function (rows) {
                 
