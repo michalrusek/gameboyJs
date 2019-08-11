@@ -52,6 +52,9 @@ let emu = function () {
        return {
            readByte: (addr) => {addr = adjust(addr); return memory[addr]},
            setByte: (addr, val) => {
+               if (addr > 0xFDFF && addr < 0xFE04) {
+                   console.log(`Writing to the frecking sprite 1: ${val.toString(16)}`)
+               }
                if(addr == 0xFF80 && tetrisHack) {
                    return
                }
@@ -110,6 +113,7 @@ let emu = function () {
     let gpu = (() => {
         let tiles = new Array(384); for (let i = 0; i < 384; i++) {let t = new Array(8); for (let j = 0; j < 8; j++) {t[j] = new Array(8)}; tiles[i] = t} // 384 tiles - each tile is [0..7] of [0..7] (8 rows of 8 pixels each)
         let frame = new Array(144); for (let i = 0; i < 144; i++) {frame[i] = new Array(160)}
+        let sprites = new Array(40); for (let i = 0; i < 40; i++) {sprites[i] = {}}
         let bgMapPixels = new Array(256); for (let i = 0; i < 256; i++) {bgMapPixels[i] = new Uint8Array(256)}
         let vstat = 0; let hstat = 0;
         let palette = [
@@ -151,7 +155,37 @@ let emu = function () {
                 z++
             }
 
-            updateBgMap()            
+            updateBgMap()     
+            updateSprites()       
+        }
+
+        let updateSprites = () => {
+            //The hardware has a complex behavior here with first moving data from RAM to OAM memory,
+            //but we don't really care for that in the emulator, we'll just use values straight from memory
+            let getSpriteData = (sprite) => {
+                //TODO: Implement 8x16 sprites as well
+                //TODO: Implement palettes for sprites
+                //TODO: Implement priority
+                //TODO: Implement flips
+                return tiles[sprite.tile]
+            }
+            
+            for (let i = 0xFE00; i < 0xFEA0; i = i + 4) {
+                let f = mem.readByte(i + 3)
+                let sprite = {
+                    x: mem.readByte(i + 1) - 8,
+                    y: mem.readByte(i) - 16,
+                    tile: mem.readByte(i + 2),
+                    prio: (f >> 7) & 1,
+                    yFlip: (f >> 6) & 1,
+                    xFlip: (f >> 5) & 1,
+                    paletteNo: (f >> 4) & 1 //non-CGB mode only
+                    //Bit 3 = tile VRAM bank - CGB mode only
+                    //Bits 0-2 = palette number - CGB mode only
+                }
+                sprite.data = getSpriteData(sprite)
+                sprites[Math.floor((i - 0xFE00)/4)] = sprite 
+            }
         }
 
         let updateBgMap = () => {
@@ -194,6 +228,19 @@ let emu = function () {
             //TODO: WINDOW
 
             //TODO: SPRITES
+            if (mem.readByte(0xFF40) & 2) {
+                for (let i = 0; i < sprites.length; i++) {
+                    let sprite = sprites[i]
+                    if (lineNo >= sprite.y && lineNo < sprite.y + 8) {
+                        //Draw
+                        for (let j = 0; j < 8; j++) {
+                            if (j + sprite.x >=0 && j + sprite.x < 160) {
+                                frame[lineNo][j + sprite.x] = sprite.data[lineNo - sprite.y][j]
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         let lcdstat = mem.readByte(0xFF41);

@@ -500,8 +500,13 @@ function z80 (mem, runInterruptsFunction) {
         'ff': ()=>{pc = pc + 1; call(0x38); return 16}    
     }
     let lastInstr = 0;
+    let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
+        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
+        if (history.length > 100) {
+            history.shift()
+        }
         // if (pc === 0x6a) {
         //     console.log(`C: ${r.c.toString(16)}`)
         // }
@@ -509,9 +514,9 @@ function z80 (mem, runInterruptsFunction) {
         //     console.log(`E: ${r.e.toString(16)}`)
         // }
         lastInstr = instr.toString(16)
-        // uniqueInstr[instr.toString(16)] = 1
-        if (pc == 0xa7) {
-            // throw new Error(`graphics done: ${JSON.stringify(uniqueInstr)}`)
+        uniqueInstr[instr.toString(16)] = 1
+        if (instr == 0x40) {
+            debugger
         }
         try {
             if (opcodes[instr.toString(16).toLowerCase()]) return opcodes[instr.toString(16).toLowerCase()]()
