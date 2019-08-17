@@ -64,7 +64,7 @@ function z80 (mem, runInterruptsFunction) {
             for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
 
             if (pc == when) {
-                logRegisters()
+                // logRegisters()
                 return true
             }
         }
@@ -96,16 +96,15 @@ function z80 (mem, runInterruptsFunction) {
             let c = op | 0
             f.n = 0; f.h = 0;
             switch (c) {
-                case 0: f.c = valOrig >> 7; valNew = (valOrig << 1) + f.c; break; //RLC - rotate left
+                case 0: f.c = valOrig >> 7; valNew = (valOrig << 1) + f.c; valNew = valNew & 0xFF; break; //RLC - rotate left
                 case 1: f.c = valOrig & 1; valNew = (valOrig >> 1) + (f.c << 7); break; //RRC - rotate right
-                case 2: valNew = (valOrig << 1) + f.c; f.c = (valOrig >> 7) & 0b1; break; //RL - rotate left through carry
-                case 3: valNew = (valOrig >> 1) + (f.c << 7); f.c = valOrig & 1; break; //RR - rotate left through carry
-                case 4: f.c = valOrig >> 7; valNew = valOrig << 1; break; //SLA
+                case 2: valNew = (valOrig << 1) + f.c; f.c = (valOrig >> 7) & 0b1; valNew = valNew & 0xFF; break; //RL - rotate left through carry
+                case 3: valNew = (valOrig >> 1) + (f.c << 7); f.c = valOrig & 1; break; //RR - rotate right through carry
+                case 4: f.c = valOrig >> 7; valNew = (valOrig << 1) % 256; break; //SLA
                 case 5: f.c = valOrig & 1; valNew = (valOrig >> 1) | (valOrig & 0x80); break; //SRA
                 case 6: valNew = ((valOrig >> 4) | (valOrig << 4)) & 0xFF; f.c = 0; break; //SWAP
                 case 7: f.c = valOrig & 1; valNew = (valOrig >> 1); break; //SRL
             }
-            valNew = valNew % 256
             f.z = valNew == 0 ? 1 : 0
         } else if ((op | 0) >= 8 && (op | 0) <= 15) {
             //BIT
@@ -225,7 +224,7 @@ function z80 (mem, runInterruptsFunction) {
             if (f.z == 0) {
                 pc = pc + 1; 
                 let val = mem.readSigned(pc); 
-                pc = (pc|0) + (val|0) + (1|0); 
+                pc = (pc|0) + (val) + (1|0); 
                 return 12;
             } else {
                 pc = pc + 2; 
@@ -503,10 +502,11 @@ function z80 (mem, runInterruptsFunction) {
     let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        if (history.length > 100) {
-            history.shift()
-        }
+        // history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        // if (history.length > 100) {
+        //     history.shift()
+        // }
+        // logRegisters()
         // if (pc === 0x6a) {
         //     console.log(`C: ${r.c.toString(16)}`)
         // }
@@ -515,9 +515,6 @@ function z80 (mem, runInterruptsFunction) {
         // }
         lastInstr = instr.toString(16)
         uniqueInstr[instr.toString(16)] = 1
-        if (instr == 0x40) {
-            debugger
-        }
         try {
             if (opcodes[instr.toString(16).toLowerCase()]) return opcodes[instr.toString(16).toLowerCase()]()
         } catch (e) {throw new Error(`Instr ${instr.toString(16).toLowerCase()} error: ${e.toString()}; PC: ${pc.toString(16)}; FULL: ${e.stack}`)}
@@ -534,19 +531,13 @@ function z80 (mem, runInterruptsFunction) {
         }
     } 
 
-    let step = () => {
-        opcode(mem.readByte(pc))
-        syncFlagsToRegister()
-        logRegisters()
-    }
-
     return {
         runCycles: runCycles,
         interrupt: interrupt,
         step: step,
         runCyclesUntil: runCyclesUntil,
         getRegisters: () => {
-            return {lastInstr: lastInstr, sp: sp, ...r}
+            return {pc, sp, hl: mem.readByte(hl()), ...r}
         }
     }
 }

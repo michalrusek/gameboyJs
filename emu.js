@@ -1,26 +1,11 @@
-let STEP_THROUGH = false
+let emu = function (outputDebugInfo) {
+    //Note it reads a window.game variable, needs to be initialized
+    if (!window.game) {
+        throw new Error(`Game was not initialized!`)
+    }
 
-let emu = function () {
-    //1. Read boot rom and game
-    // let bootRom = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "DMG_ROM.bin")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Tetris (JUE) (V1.1) [!].gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "Super Mario Land (JUE) (V1.1) [!].gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "01-special.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "02-interrupts.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "03-op sp,hl.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "04-op r,imm.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "05-op rp.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "06-ld r,r.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "07-jr,jp,call,ret,rst.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "08-misc instrs.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "09-op r,r.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "10-bit ops.gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "individual", "11-op a,(hl).gb")))
-    // let game = new Uint8Array(fs.readFileSync(path.resolve(__dirname, "res", "daa.gb")))
-    let game = tetrisRom
-
-    
     let tetrisHack = true
+    let stopped = false
 
     //2. Initialize memory (also see http://bgb.bircd.org/pandocs.htm#powerupsequence)
     let mem = (function () {
@@ -42,41 +27,78 @@ let emu = function () {
         FF80	FFFE	                        High RAM (HRAM)	
         FFFF	FFFF	                        Interrupts Enable Register (IE)	
         */
-       let memory = new Uint8Array(0xFFFF + 1)
-       for (let i = 0; i < 0x10000; i++) {
-           memory[i] = 0
-       }
-       let adjust = (addr) => {
+        let memory = new Uint8Array(0xFFFF + 1)
+        for (let i = 0; i < 0x10000; i++) {
+            memory[i] = 0
+        }
+        let adjust = (addr) => {
            if (addr >= 0xE000 && addr <= 0xFDFF) {addr = addr - 0x2000} return addr
         }
-       return {
-           readByte: (addr) => {addr = adjust(addr); return memory[addr]},
-           setByte: (addr, val) => {
-               if (addr > 0xFDFF && addr < 0xFE04) {
-                   console.log(`Writing to the frecking sprite 1: ${val.toString(16)}`)
-               }
-               if(addr == 0xFF80 && tetrisHack) {
-                   return
-               }
-                if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
-                    return
-                }
-                if (addr == 0xFF41) {
-                        memory[addr] &= ~ 120;
-                        memory[addr] |= (val & ~135);
-                        return
-                }
-                addr = adjust(addr); memory[addr] = val & 0xFF
-            },
-           readSigned: (addr) => {addr = adjust(addr); return memory[addr] >= 128 ? memory[addr] - 256 : memory[addr]},
-           readWord: (addr) => {addr = adjust(addr); return (memory[addr] + (memory[addr + 1] << 8))},
-           setWord: (addr, val) => {
-                mem.setByte(addr + 1, (val >> 8) & 0xFF)
-                mem.setByte(addr, val & 0xFF)
+        let dmaTransfer = (val) => {
+            //DMA transfer is a weird thing where you get the value the CPU was trying to save to 0xFF46
+            //Multiply it by 0x100 - the transfer can only start at addresses divisible by 0x100, 
+            //and the data written will always be <= 0xFF, so we need to multiply it by 0x100 to get an address.
+            //That's the the start of data you should transfer to Sprite Table
+            val = val * 0x100
+
+            //Iterate through 160 bytes (40 sprites, 4 bytes each) and copy them into 0xFE00 - 0xFE9F
+            for (let i = 0; i < 160; i++) {
+                // if (i == 1) {
+                //     if (readByte(val + i) == 16 || readByte(val + i) == 96) {
+                //         debugger
+                //     }
+                //     console.log(`Sprite x: ${readByte(val + i)}`)
+                // }
+                setByte(0xFE00 + i, readByte(val + i), true)
             }
-       }
+        }
+        let readByte = (addr) => {addr = adjust(addr); return memory[addr]}
+        let setByte = (addr, val, force) => {
+            if(addr == 0xC001 && val == 96) {
+                debugger
+            }
+            if(addr == 0xFF80 && tetrisHack) {
+                return
+            }
+            if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
+                return
+            }
+            if (addr == 0xFF41) {
+                    memory[addr] &= ~ 120;
+                    memory[addr] |= (val & ~135);
+                    return
+            }
+            if (addr >= 0xFE00 && addr <= 0xFE9F && !force) {
+                return
+            }
+            if (addr == 0xFF00) {
+                //Joypad IO
+                let oldVal = mem.readByte(addr)
+                mem[addr] = ((oldVal & 0xF) | (val & 0xF0))
+                //moveKeysToMemory()
+            }
+            if (addr == 0xFF46) {
+                //Attempts at write to this address trigger a DMA transfer
+                //as far as I understand this transfer normally doesn't happen right away, but rather at an appropriate time
+                //but for the purpose of emulation we can run it immediately
+                dmaTransfer(val)
+                return
+            }
+            addr = adjust(addr); memory[addr] = val & 0xFF
+        }
+        let readSigned = (addr) => {addr = adjust(addr); return memory[addr] >= 128 ? memory[addr] - 256 : memory[addr]}
+        let readWord = (addr) => {addr = adjust(addr); return (memory[addr] + (memory[addr + 1] << 8))}
+        let setWord = (addr, val) => {
+            setByte(addr + 1, (val >> 8) & 0xFF)
+            setByte(addr, val & 0xFF)
+        }
+        let initMem = () => {
+            mem[0xFF00] = 0xFF
+            mem[0xFF50] = 0x01 //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
+        }
+        return {initMem, readByte, setByte, readSigned, readWord, setWord, memory}
     })()
-    mem.setByte(0xFF50, 0x01) //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
+    mem.initMem()
 
     //4a. Read game into memory
     //TODO: Read only the first memory bank and implement banks overall
@@ -156,7 +178,7 @@ let emu = function () {
             }
 
             updateBgMap()     
-            updateSprites()       
+            updateSprites()
         }
 
         let updateSprites = () => {
@@ -183,6 +205,7 @@ let emu = function () {
                     //Bit 3 = tile VRAM bank - CGB mode only
                     //Bits 0-2 = palette number - CGB mode only
                 }
+                
                 sprite.data = getSpriteData(sprite)
                 sprites[Math.floor((i - 0xFE00)/4)] = sprite 
             }
@@ -229,14 +252,18 @@ let emu = function () {
 
             //TODO: SPRITES
             if (mem.readByte(0xFF40) & 2) {
+                let spritesDrawnOnLine = 0
                 for (let i = 0; i < sprites.length; i++) {
                     let sprite = sprites[i]
-                    if (lineNo >= sprite.y && lineNo < sprite.y + 8) {
+                    if (lineNo >= sprite.y && lineNo < sprite.y + 8 && !sprite.prio) {
                         //Draw
-                        for (let j = 0; j < 8; j++) {
-                            if (j + sprite.x >=0 && j + sprite.x < 160) {
-                                frame[lineNo][j + sprite.x] = sprite.data[lineNo - sprite.y][j]
+                        if (spritesDrawnOnLine <= 10) {
+                            for (let j = 0; j < 8 ; j++) {
+                                if (j + sprite.x >=0 && j + sprite.x < 160) {
+                                    frame[lineNo][j + sprite.x] = sprite.data[lineNo - sprite.y][j]
+                                }
                             }
+                            spritesDrawnOnLine++
                         }
                     }
                 }
@@ -351,58 +378,70 @@ let emu = function () {
     })()
 
     //5. Start emulation
+    let getDebugInfo = () => {
+        return {cpu: cpu.getRegisters()}
+    }
     let time = (new Date()).getTime()
 
     gpu.recalcTiles()
     let loop = function () {
-        requestAnimationFrame(loop.bind(this))
-        
-        gpu.recalcTiles()
-        if (window.displayPixels) {
-            window.displayPixels(gpu.getFrame())
-        }
-        try{
-            if (!this.paused) {
+        if (!stopped) {
+            requestAnimationFrame(loop.bind(this))
+            
+            gpu.recalcTiles()
+            if (window.displayPixels) {
+                window.displayPixels(gpu.getFrame())
+            }
+            try{
                 //4,213,440 CPU ticks each second, 154 scanlines per frame - draw 2 frames
                 for (let i = 0; i < 154 * 4; i++) {
                     cpu.runCycles(114)
                     gpu.update()
                     timers.update(114)
                 }
+            } catch (e) {
+                throw(e);
             }
-        } catch (e) {
-            throw(e);
-        }
+            outputDebugInfo(getDebugInfo())
 
-        console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
+            // console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
+        }
     }
 
-    // let loopUntil = (when) => {
-    //     let stop = false
+    let loopUntil = (when) => {
+        let stop = false
         
-    //     gpu.recalcTiles()
-    //     window.webContents.send('gpuTiles', gpu.getTiles()) 
-    //     window.webContents.send('framePixels', gpu.getFrame()) 
-
-    //     while (!stop) {
-    //         stop = cpu.runCyclesUntil(114, when)
-    //         timers.update(114)
-    //         gpu.update()
-    //     }
-    // }
-
-    // let step = () => {
-    //     cpu.step()
-    //     gpu.recalcTiles()
-    //     window.webContents.send('gpuTiles', gpu.getTiles()) 
-    // }
-
-    if (STEP_THROUGH) {
-        return {
-            step: step,
-            loopUntil: loopUntil
+        gpu.recalcTiles()
+        if (window.displayPixels) {
+            window.displayPixels(gpu.getFrame())
         }
-    } else {
-        loop()
+
+        while (!stop) {
+            stop = cpu.runCyclesUntil(114, when)
+            gpu.update()
+            timers.update(114)
+        }
+    }
+
+    let cyclesRan = 0
+    let step = () => {
+        gpu.recalcTiles()
+        if (window.displayPixels) {
+            window.displayPixels(gpu.getFrame())
+        }
+        cyclesRan += cpu.runCycles(1)
+        if (cyclesRan >= 114) {
+            cyclesRan -= 114
+            gpu.update()
+            timers.update(114)
+        }
+        outputDebugInfo(getDebugInfo())
+    }
+
+    return {
+        start: () => {stopped = false; cyclesRan = 0; loop()},
+        stop: () => {stopped = true},
+        step,
+        getMemory: () => {return mem.memory}
     }
 }

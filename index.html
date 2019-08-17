@@ -1,10 +1,87 @@
 <html>
-    <body style="display:flex; flex-direction:row;">
-        <div>
+    <head>
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet"/> 
+        <style>
+            .game {
+                width: 640px;
+            }
+
+            .bady {
+                font-family: 'Roboto', sans-serif;
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                width: auto;
+                font-size: 2em;
+            }
+
+            .bady div {
+                /* min-width: 200px */
+                margin-left: 1em
+            }
+
+            .controls {
+                display: flex;
+                flex-direction: column;
+                min-width: 0px;
+                
+            }
+            
+            .controls button {
+                margin-top: 1em;
+            }
+
+            .cpu {
+                display: flex;
+                flex-direction: column;
+                min-width: 3em
+            }
+
+            .labelValue {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between
+            }
+
+            .memory {
+                display: flex;
+                flex-direction: column;
+                width: 10em;
+                align-content: left;
+            }
+        </style>
+    </head>
+    <body class="bady">
+        <div class="game">
             GAME:<br/>
             <div>
                 <canvas id="game" width="160" height="144" style="transform: scale(4); transform-origin: top left;"></canvas>
             </div>
+        </div>
+        <div class="controls">
+            Controls:
+            <button onclick="run()">Run/Re-Run</button>
+            <button onclick="stop()">Stop</button>
+            <button onclick="cont()">Continue</button>
+            <button onclick="step()">Step</button>
+        </div>
+        <div class="memory">
+            <div>Memory:</div>
+            <button onclick="printMemory()">Print memory</button>
+            <select multiple id="mem" size=50></select>
+        </div>
+        <div class="cpu">
+            <div>CPU:</div>
+            <div class="labelValue" id="rb"></div>
+            <div class="labelValue" id="rc"></div>
+            <div class="labelValue" id="rd"></div>
+            <div class="labelValue" id="re"></div>
+            <div class="labelValue" id="rh"></div>
+            <div class="labelValue" id="rl"></div>
+            <div class="labelValue" id="rhl"></div>
+            <div class="labelValue" id="ra"></div>
+            <div class="labelValue" id="rf"></div>
+
         </div>
         <!-- <div>
             TILES:<br/>
@@ -15,88 +92,6 @@
         <script src="res/tetrisRom.js"></script>
         <script src="cpu.js"></script>
         <script src="emu.js"></script>
-
-        <script>
-            //Start emulation
-            var gameboy = emu()
-        // (()=>{
-        //     const { ipcRenderer } = require("electron")
-        //     const {webFrame} = require("electron")
-        //     // Set the zoom factor to 200%
-        //     webFrame.setZoomFactor(2);
-
-        //     var bgMap = document.getElementById("tiles")
-        //     var buffer = document.createElement("canvas"); buffer.width = bgMap.width; buffer.height = bgMap.height;
-        //     var bgMapCtx = bgMap.getContext("2d")
-        //     var bufferCtx = buffer.getContext("2d")
-        //     ipcRenderer.on("gpuTiles", (event, arg) => {
-        //         //arg is an array with rgb values for the tilemap (whole 0x8000 - 0x97FF) - translate it to a canvas
-        //         for (var k = 0; k < 24; k++) { //draw 24 rows of tiles
-        //             for (var i = 0; i < 16; i++) { //draw 16 tiles in one row
-        //                 tile = arg[k * 16 + i] //tile is an array of lines (arrays), each holding rgb info ([[`rgb(0,0,0)`, `rgb(0,0,0`)...], [`rgb(0, 0, 0 ), `rgb(0,0,0`)...]])
-        //                 tile.forEach((line, j) => {
-        //                     var baseX = i * 8
-        //                     var baseY = k * 8
-        //                     line.forEach((px, z)=> {
-        //                         var x = baseX + z; var y = baseY + j;
-        //                         bufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
-        //                         bufferCtx.fillRect(x, y, 1, 1)
-        //                     })
-        //                 })
-        //             }
-        //         }
-        //         bgMapCtx.drawImage(buffer, 0, 0)
-        //     })
-
-        //     var gameCanvas = document.getElementById("game")
-        //     var gameCanvasCtx = gameCanvas.getContext("2d")
-        //     var frameBuffer = document.createElement("canvas"); frameBuffer.width = gameCanvas.width; frameBuffer.height = gameCanvas.height;
-        //     var frameBufferCtx = frameBuffer.getContext("2d")
-        //     ipcRenderer.on("framePixels", (event, pixels) => {
-        //         var j = -1;
-        //         pixels.forEach((px, i) => {
-        //             if (i % 160 === 0) {j++}
-        //             frameBufferCtx.fillStyle = `rgb(${255-px}, ${255-px}, ${255-px})`
-        //             frameBufferCtx.fillRect(i % 160, j, 1, 1)
-        //         })
-        //         gameCanvasCtx.drawImage(frameBuffer, 0, 0)
-        //     })
-
-        //     document.body.onkeypress = (ev) => {
-        //         ipcRenderer.send("asynchronous-message", ev.key);
-        //     }
-
-        //     (()=>{
-        //         ipcRenderer.send("asynchronous-message", "start");                
-        //     })()
-        // })()
-        
-        
-        document.addEventListener("DOMContentLoaded", function(){
-        // Handler when the DOM is fully loaded
-            var gameCanvas = document.getElementById("game")
-            var gameCanvasCtx = gameCanvas.getContext("2d")
-        
-            window.displayPixels  = function (rows) {
-                
-                let id = gameCanvasCtx.getImageData(0, 0, 160, 144)
-                let pixlos = id.data
-                w = 0
-                for (let j = 0; j < 144; j++) {
-                    for (let i = 0; i < 160; i++) {
-                        let px = rows[j][i]
-                        pixlos[w] = px
-                        pixlos[w + 1] = px
-                        pixlos[w + 2] = px
-                        pixlos[w + 3] = 0xFF
-                        w += 4
-                    }
-                }
-                gameCanvasCtx.putImageData(id, 0, 0)
-            }
-        });
-
-        
-        </script>
+        <script src="misc.js"></script>
     </body>
 </html>

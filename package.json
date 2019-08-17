@@ -4,12 +4,13 @@
   "description": "",
   "main": "main.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "httpserver -H 127.0.0.1 -p 80"
   },
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "httpserver": "^0.3.0"
   },
-  "dependencies": {
-  }
+  "dependencies": {}
 }
