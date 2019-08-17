@@ -42,6 +42,51 @@ function step () {
     }
 }
 
+function memAddr (e) {
+    if (e.key != `Enter`) {return;}
+    let memBox = document.querySelector(`#mem`)
+    let inputVal = document.querySelector(`#memSearchBoxAddr`).value
+    let radix = 10
+    if (inputVal.toString().includes(`0x`)) {radix = 16; inputVal = inputVal.substring(2)}
+    if (inputVal.toString().includes(`0b`)) {radix = 2; inputVal = inputVal.substring(2)}
+    let addressToGet = parseInt(inputVal.toString(), radix)
+    memBox.options.selectedIndex = addressToGet
+}
+
+function memVal (e) {
+    if (e.key != `Enter`) {return;}
+    let memBox = document.querySelector(`#mem`)
+    let inputVal = document.querySelector(`#memSearchBoxVal`).value
+    let radix = 10
+    if (inputVal.toString().includes(`0x`)) {radix = 16; inputVal = inputVal.substring(2)}
+    if (inputVal.toString().includes(`0b`)) {radix = 2; inputVal = inputVal.substring(2)}
+    let valueToFind = parseInt(inputVal.toString(), radix)
+    let index = -1;
+    if (window.gb) {
+        let mem = window.gb.getMemory()
+        //Search from the currently selected index
+        let searchStart = memBox.options.selectedIndex >= 0 ? memBox.options.selectedIndex + 1: 0
+        let found = false
+        for (let i = searchStart; i < mem.length; i++) {
+            if (mem[i] === valueToFind) {
+                index = i
+                found = true
+                break
+            }
+        }
+        //If this didn't yield anything - try searching from the top again
+        if (!found) {
+            for (let i = 0; i < mem.length; i++) {
+                if (mem[i] === valueToFind) {
+                    index = i
+                    break
+                }
+            }
+        }
+    }
+    memBox.options.selectedIndex = index
+}
+
 function outputDebugInfo ({cpu}) {
     //TODO: This
     document.querySelector(`#rb`).innerHTML = `B: 0x${cpu.b.toString(16)}`
@@ -58,12 +103,13 @@ function outputDebugInfo ({cpu}) {
 function printMemory () {
     if (window.gb) {
         let mem = window.gb.getMemory()
-        let memDom = document.querySelector(`#mem`) 
+        let memDom = document.querySelector(`#mem`)
+        let t = (v, i) => {return `${i.toString(16).padEnd(10, ".")} 0x${v.toString(16)}`}
         if (memDom.childElementCount == 0) {
-            mem.forEach(v => memDom.appendChild(new Option(v)))
+            mem.forEach((v, i) => memDom.appendChild(new Option(t(v, i))))
         } else {
             mem.forEach((v, i) => {
-                memDom.childNodes[i].innerHTML = v
+                memDom.childNodes[i].innerHTML = t(v, i)
             })
         }
     }
