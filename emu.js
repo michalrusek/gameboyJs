@@ -54,9 +54,9 @@ let emu = function (outputDebugInfo) {
         }
         let readByte = (addr) => {addr = adjust(addr); return memory[addr]}
         let setByte = (addr, val, force) => {
-            if(addr == 0xC001 && val == 96) {
-                debugger
-            }
+            // if(addr == 0xC001 && val == 96) {
+            //     debugger
+            // }
             if(addr == 0xFF80 && tetrisHack) {
                 return
             }
@@ -74,8 +74,9 @@ let emu = function (outputDebugInfo) {
             if (addr == 0xFF00) {
                 //Joypad IO
                 let oldVal = mem.readByte(addr)
-                mem[addr] = ((oldVal & 0xF) | (val & 0xF0))
+                memory[addr] = ((oldVal & 0xF) | (val & 0xF0))
                 //moveKeysToMemory()
+                return
             }
             if (addr == 0xFF46) {
                 //Attempts at write to this address trigger a DMA transfer
@@ -93,8 +94,8 @@ let emu = function (outputDebugInfo) {
             setByte(addr, val & 0xFF)
         }
         let initMem = () => {
-            mem[0xFF00] = 0xFF
-            mem[0xFF50] = 0x01 //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
+            memory[0xFF00] = 0x0F
+            memory[0xFF50] = 0x01 //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
         }
         return {initMem, readByte, setByte, readSigned, readWord, setWord, memory}
     })()
@@ -395,31 +396,19 @@ let emu = function (outputDebugInfo) {
             try{
                 //4,213,440 CPU ticks each second, 154 scanlines per frame - draw 2 frames
                 for (let i = 0; i < 154 * 4; i++) {
-                    cpu.runCycles(114)
+                    stopped = cpu.runCycles(114) <= 0
                     gpu.update()
                     timers.update(114)
+                    if (stopped) {
+                        break
+                    }
                 }
             } catch (e) {
                 throw(e);
             }
             outputDebugInfo(getDebugInfo())
 
-            // console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
-        }
-    }
-
-    let loopUntil = (when) => {
-        let stop = false
-        
-        gpu.recalcTiles()
-        if (window.displayPixels) {
-            window.displayPixels(gpu.getFrame())
-        }
-
-        while (!stop) {
-            stop = cpu.runCyclesUntil(114, when)
-            gpu.update()
-            timers.update(114)
+            console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
         }
     }
 
@@ -442,6 +431,8 @@ let emu = function (outputDebugInfo) {
         start: () => {stopped = false; cyclesRan = 0; loop()},
         stop: () => {stopped = true},
         step,
-        getMemory: () => {return mem.memory}
+        getMemory: () => {return mem.memory},
+        setBreakPoint: (v) => {cpu.addBreakPoint(v)},
+        removeBreakPoint: (v) => {cpu.removeBreakPoint(v)}
     }
 }

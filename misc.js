@@ -98,6 +98,8 @@ function outputDebugInfo ({cpu}) {
     document.querySelector(`#rhl`).innerHTML = `HL: 0x${cpu.hl.toString(16)}`
     document.querySelector(`#ra`).innerHTML = `A: 0x${cpu.a.toString(16)}`
     document.querySelector(`#rf`).innerHTML = `F: 0b${cpu.f.toString(2).padStart(8, "0")}`
+    document.querySelector(`#pc`).innerHTML = `PC: 0x${cpu.pc.toString(16)}`
+    document.querySelector(`#sp`).innerHTML = `SP: 0x${cpu.sp.toString(16)}`
 }
 
 function printMemory () {
@@ -123,7 +125,7 @@ function run () {
 
     //Get the ROM and start it
 
-    // fetch("res/Tetris (JUE) (V1.1) [!].gb")
+    fetch("res/Tetris (JUE) (V1.1) [!].gb")
     // fetch("res/individual/01-special.gb")
     // fetch("res/individual/02-interrupts.gb")
     // fetch("res/individual/03-op sp,hl.gb")
@@ -132,7 +134,7 @@ function run () {
     // fetch("res/individual/06-ld r,r.gb")
     // fetch("res/individual/07-jr,jp,call,ret,rst.gb")
     // fetch("res/individual/08-misc instrs.gb")
-    fetch("res/individual/09-op r,r.gb")
+    // fetch("res/individual/09-op r,r.gb")
     // fetch("res/individual/10-bit ops.gb")
     // fetch("res/individual/11-op a,(hl).gb")
     // fetch("res/cpu_instrs.gb")
@@ -141,7 +143,8 @@ function run () {
         })
         .then((ab) => {
             game = new Uint8Array(ab);
-            window.gb = emu(outputDebugInfo)  
+            window.gb = emu(outputDebugInfo) 
+            // window.gb.setBreakPoint(0x29b8)
             window.gb.start()          
         })
 }

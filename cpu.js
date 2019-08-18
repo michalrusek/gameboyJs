@@ -38,7 +38,14 @@ function z80 (mem, runInterruptsFunction) {
 
     let runCycles = function (n) {
         let cyclesRan = 0;
+        let firstInstr = true
         while (n >= 0 && !stopped) {
+            if (breakPoints.includes(pc) && !firstInstr) {
+                console.log(`Hit breakpoint at ${pc.toString(16)}`)
+                return 0
+            } else {
+                firstInstr = false
+            }
             let num = opcode(mem.readByte(pc))
             n = n - num
             cyclesRan = cyclesRan + num
@@ -507,8 +514,8 @@ function z80 (mem, runInterruptsFunction) {
         //     history.shift()
         // }
         // logRegisters()
-        // if (pc === 0x6a) {
-        //     console.log(`C: ${r.c.toString(16)}`)
+        // if (pc === 0x96) {
+        //     debugger
         // }
         // if (pc === 0x6d) {
         //     console.log(`E: ${r.e.toString(16)}`)
@@ -529,15 +536,30 @@ function z80 (mem, runInterruptsFunction) {
         } else {
             return false
         }
-    } 
+    }
+
+    let breakPoints = []
+    let addBreakPoint = (v) => {
+        if (!breakPoints.includes(v)) {
+            breakPoints.push(v)
+        }
+    }
+
+    let removeBreakPoint = (v) => {
+        if (breakPoints.includes(v)) {
+            breakPoints.splice(breakPoints.indexOf(v), 1)
+        }
+    }
 
     return {
-        runCycles: runCycles,
-        interrupt: interrupt,
-        step: step,
-        runCyclesUntil: runCyclesUntil,
+        runCycles,
+        interrupt,
+        step,
+        runCyclesUntil,
         getRegisters: () => {
             return {pc, sp, hl: mem.readByte(hl()), ...r}
-        }
+        },
+        addBreakPoint,
+        removeBreakPoint
     }
 }
