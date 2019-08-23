@@ -21,10 +21,10 @@ function z80 (mem, runInterruptsFunction) {
     let IME = false
 
     //Power up stuff (see http://bgb.bircd.org/pandocs.htm#powerupsequence)
-    af(0x0100)
-    bc(0x0013)
-    de(0x00D8)
-    hl(0x014D)
+    // af(0x0100)
+    // bc(0x0013)
+    // de(0x00D8)
+    // hl(0x014D)
     sp = 0xFFFE
 
     let logRegisters = () => {
@@ -192,7 +192,13 @@ function z80 (mem, runInterruptsFunction) {
         f.h = (a % 0x1000) + (b % 0x1000) > 0xFFF ? 1 : 0; 
         return res % 0x10000
     }
-    let call = (addr) => {if (sp == 0) {throw new Error(`SP going lower than 0.`)} sp = sp - 2; mem.setWord(sp, pc); pc = addr}
+    let call = (addr) => {
+        if (sp == 0) {throw new Error(`SP going lower than 0.`)} 
+        sp = sp - 2; 
+        sp = sp & 0xFFFF;
+        mem.setWord(sp, pc); 
+        pc = addr
+    }
 
     let opcodes = {
         '0': ()=>{pc = pc + 1; return 4;},
@@ -435,32 +441,32 @@ function z80 (mem, runInterruptsFunction) {
         'bd': ()=>{sub(r.a, r.l); pc = pc + 1; return 4},
         'be': ()=>{sub(r.a, mem.readByte(hl())); pc = pc + 1; return 8},
         'bf': ()=>{sub(r.a, r.a); pc = pc + 1; return 4},
-        'c0': ()=>{if (f.z == 0) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
-        'c1': ()=>{bc(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'c0': ()=>{if (f.z == 0) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
+        'c1': ()=>{bc(mem.readWord(sp)); sp = sp + 2; sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'c2': ()=>{if (f.z == 0) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'c3': ()=>{pc = mem.readWord(pc + 1); return 16},
         'c4': ()=>{if (f.z == 0) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
-        'c5': ()=>{sp = sp - 2; mem.setWord(sp, bc()); pc = pc + 1; return 16},
+        'c5': ()=>{sp = sp - 2; sp = sp & 0xFFFF; mem.setWord(sp, bc()); pc = pc + 1; return 16},
         'c6': ()=>{r.a = add(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'c7': ()=>{pc = pc + 1; call(0x0); return 16},
-        'c8': ()=>{if (f.z == 1) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
-        'c9': ()=>{pc = mem.readWord(sp); sp = sp + 2; return 16},
+        'c8': ()=>{if (f.z == 1) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
+        'c9': ()=>{pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 16},
         'ca': ()=>{if (f.z == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'cb': ()=>{let cyclos = cb(mem.readByte(pc + 1)); pc = pc + 2; return cyclos},
         'cc': ()=>{if (f.z == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
         'cd': ()=>{pc = pc + 3; call(mem.readWord(pc - 2)); return 24},
         'ce': ()=>{r.a = adc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'cf': ()=>{pc = pc + 1; call(0x8); return 16},
-        'd0': ()=>{if (f.c == 0) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
-        'd1': ()=>{de(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'd0': ()=>{if (f.c == 0) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
+        'd1': ()=>{de(mem.readWord(sp)); sp = sp + 2; sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'd2': ()=>{if (f.c == 0) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'd3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'd4': ()=>{if (f.c == 0) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
-        'd5': ()=>{sp = sp - 2; mem.setWord(sp, de()); pc = pc + 1; return 16},
+        'd5': ()=>{sp = sp - 2; sp = sp & 0xFFFF; mem.setWord(sp, de()); pc = pc + 1; return 16},
         'd6': ()=>{r.a = sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'd7': ()=>{pc = pc + 1; call(0x10); return 16},
-        'd8': ()=>{if (f.c == 1) {pc = mem.readWord(sp); sp = sp + 2; return 20} else {pc = pc + 1; return 8}},
-        'd9': ()=>{pc = mem.readWord(sp); sp = sp + 2; IME = true; return 16},
+        'd8': ()=>{if (f.c == 1) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
+        'd9': ()=>{pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; IME = true; return 16},
         'da': ()=>{if (f.c == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
         'db': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'dc': ()=>{if (f.c == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
@@ -468,11 +474,11 @@ function z80 (mem, runInterruptsFunction) {
         'de': ()=>{r.a = sbc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'df': ()=>{pc = pc + 1; call(0x18); return 16},
         'e0': ()=>{mem.setByte(0xFF00 + mem.readByte(pc + 1), r.a); pc = pc + 2; return 12},
-        'e1': ()=>{hl(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'e1': ()=>{hl(mem.readWord(sp)); sp = sp + 2; sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'e2': ()=>{mem.setByte(0xFF00 + r.c, r.a); pc = pc + 1; return 8},
         'e3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'e4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'e5': ()=>{sp = sp - 2; mem.setWord(sp, hl()); pc = pc + 1; return 16},
+        'e5': ()=>{sp = sp - 2;  sp = sp & 0xFFFF; mem.setWord(sp, hl()); pc = pc + 1; return 16},
         'e6': ()=>{r.a = and(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'e7': ()=>{pc = pc + 1; call(0x20); return 16},
         'e8': ()=>{
@@ -489,11 +495,11 @@ function z80 (mem, runInterruptsFunction) {
         'ee': ()=>{r.a = xor(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'ef': ()=>{pc = pc + 1; call(0x28); return 16},
         'f0': ()=>{r.a = mem.readByte(0xFF00 + mem.readByte(pc + 1)); pc = pc + 2; return 12},
-        'f1': ()=>{af(mem.readWord(sp)); sp = sp + 2; pc = pc + 1; return 12},
+        'f1': ()=>{af(mem.readWord(sp)); sp = sp + 2;  sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'f2': ()=>{r.a = mem.readByte(0xFF00 + r.c); pc = pc + 1; return 8},
         'f3': ()=>{IME = false; pc = pc + 1; return 4},
         'f4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'f5': ()=>{sp = sp - 2; mem.setWord(sp, af()); pc = pc + 1; return 16},
+        'f5': ()=>{sp = sp - 2;  sp = sp & 0xFFFF; mem.setWord(sp, af()); pc = pc + 1; return 16},
         'f6': ()=>{r.a = or(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'f7': ()=>{pc = pc + 1; call(0x30); return 16},
         'f8': ()=>{hl(addWord(sp, mem.readSigned(pc + 1))); f.z = 0; pc = pc + 2; return 12},

@@ -53,24 +53,16 @@ let emu = function (outputDebugInfo) {
             }
         }
         let readByte = (addr) => {addr = adjust(addr); return memory[addr]}
+        //TODO: Rename `force` to something else
         let setByte = (addr, val, force) => {
-            // if(addr == 0xC001 && val == 96) {
-            //     debugger
-            // }
             if(addr == 0xFF80 && tetrisHack) {
                 return
             }
+            //VRAM is only accessible during some of the PPU states, not all of them
             if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
                 return
             }
-            if (addr == 0xFF41) {
-                    memory[addr] &= ~ 120;
-                    memory[addr] |= (val & ~135);
-                    return
-            }
-            if (addr >= 0xFE00 && addr <= 0xFE9F && !force) {
-                return
-            }
+            //IO stuff - 0xFF00 - 0xFF80?
             if (addr == 0xFF00) {
                 //Joypad IO
                 let oldVal = mem.readByte(addr)
@@ -78,11 +70,26 @@ let emu = function (outputDebugInfo) {
                 //moveKeysToMemory()
                 return
             }
+            if (addr == 0xFF04) {memory[addr] = 0; return}
+            if (addr == 0xFF05) {memory[addr] = 0; return}
+            if (addr == 0xFF0F && !force) {
+                addr = adjust(addr); memory[addr] = val & 0xFF
+                interrupts.run();
+            }
+            if (addr == 0xFF41) {
+                    memory[addr] &= ~ 120;
+                    memory[addr] |= (val & ~135);
+                    return
+            }
             if (addr == 0xFF46) {
                 //Attempts at write to this address trigger a DMA transfer
                 //as far as I understand this transfer normally doesn't happen right away, but rather at an appropriate time
                 //but for the purpose of emulation we can run it immediately
                 dmaTransfer(val)
+                return
+            }
+            // ??
+            if (addr >= 0xFE00 && addr <= 0xFE9F && !force) {
                 return
             }
             addr = adjust(addr); memory[addr] = val & 0xFF
@@ -115,7 +122,7 @@ let emu = function (outputDebugInfo) {
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
             if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {iflag = iflag ^ 0b10}
             if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
-            mem.setByte(0xFF0F, iflag)
+            mem.setByte(0xFF0F, iflag, true)
         }
 
         let vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1); run()}

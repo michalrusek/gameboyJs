@@ -124,8 +124,9 @@ function run () {
     window.gb = null
 
     //Get the ROM and start it
-
+    //
     fetch("res/Tetris (JUE) (V1.1) [!].gb")
+    // fetch("res/Super Mario Land (JUE) (V1.1) [!].gb")
     // fetch("res/individual/01-special.gb")
     // fetch("res/individual/02-interrupts.gb")
     // fetch("res/individual/03-op sp,hl.gb")
