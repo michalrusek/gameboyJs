@@ -21,10 +21,10 @@ function z80 (mem, runInterruptsFunction) {
     let IME = false
 
     //Power up stuff (see http://bgb.bircd.org/pandocs.htm#powerupsequence)
-    // af(0x0100)
-    // bc(0x0013)
-    // de(0x00D8)
-    // hl(0x014D)
+    af(0x0100)
+    bc(0x0013)
+    de(0x00D8)
+    hl(0x014D)
     sp = 0xFFFE
 
     let logRegisters = () => {
@@ -69,7 +69,9 @@ function z80 (mem, runInterruptsFunction) {
 
             //Just a sanity check - run through all registers and if any is above 0xFF then something went really wrong
             for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
-
+            if (sp == 0xCFF7) {
+                debugger
+            }
             if (pc == when) {
                 // logRegisters()
                 return true
@@ -505,7 +507,7 @@ function z80 (mem, runInterruptsFunction) {
         'f8': ()=>{hl(addWord(sp, mem.readSigned(pc + 1))); f.z = 0; pc = pc + 2; return 12},
         'f9': ()=>{sp = hl(); pc = pc + 1; return 8},
         'fa': ()=>{r.a = mem.readByte(mem.readWord(pc + 1)); pc = pc + 3; return 16},
-        'fb': ()=>{IME = 1; pc = pc + 1; runInterruptsFunction(); return 4;},
+        'fb': ()=>{IME = true; pc = pc + 1; runInterruptsFunction(); return 4;},
         'fc': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'fd': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
         'fe': ()=>{sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
@@ -536,8 +538,8 @@ function z80 (mem, runInterruptsFunction) {
     let interrupt = (addr) => {
         if (IME) {
             IME = false
-            call(addr)
             stopped = false
+            call(addr)
             return true
         } else {
             return false

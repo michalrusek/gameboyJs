@@ -63,11 +63,11 @@ let emu = function (outputDebugInfo) {
                 return
             }
             //IO stuff - 0xFF00 - 0xFF80?
-            if (addr == 0xFF00) {
+            if (addr == 0xFF00 && !force) {
                 //Joypad IO
                 let oldVal = mem.readByte(addr)
                 memory[addr] = ((oldVal & 0xF) | (val & 0xF0))
-                //moveKeysToMemory()
+                moveKeysToMemory()
                 return
             }
             if (addr == 0xFF04) {memory[addr] = 0; return}
@@ -109,10 +109,10 @@ let emu = function (outputDebugInfo) {
     mem.initMem()
 
     //4a. Read game into memory
-    //TODO: Read only the first memory bank and implement banks overall
-    game.forEach((val, index) => {
-        mem.setByte(index, val)
-    })
+    //TODO: Implement banks overall
+    for (let i = 0; i < 0x8000 && i < game.length; i++) {
+        mem.setByte(i, game[i])
+    }
 
     let interrupts = (()=>{
 
@@ -122,17 +122,16 @@ let emu = function (outputDebugInfo) {
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
             if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {iflag = iflag ^ 0b10}
             if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
+            if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
             mem.setByte(0xFF0F, iflag, true)
         }
 
         let vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1); run()}
         let lcd = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10); run()}
         let timer = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b100); run()}
+        let joypad = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10000); run()}
         return {
-            vblank: vblank,
-            lcd: lcd,
-            run: run,
-            timer: timer
+            vblank, lcd, run, timer, joypad
         }
     })()
 
@@ -220,16 +219,27 @@ let emu = function (outputDebugInfo) {
         }
 
         let updateBgMap = () => {
+            let lcdc = mem.readByte(0xFF40)
+
             //1. Read BGMap from memory (32x32 tiles)
             let bgTiles = []
+            let signed = ((lcdc > 4) & 0b1) ? false : true
             if (tiles.length == 0) {return}
-            for (let i = 0x9800; i < 0x9C00; i++) {bgTiles.push(mem.readByte(i))}
+            if ((lcdc >> 3) & 0b1) {
+                for (let i = 0x9C00; i < 0xA000; i++) {bgTiles.push(mem.readByte(i))}
+            } else {
+                for (let i = 0x9800; i < 0x9C00; i++) {bgTiles.push(mem.readByte(i))}
+            }
 
             //2. Throw it into bgMapPixels array (256 x 256 (32 * 8 = 256))
             for (let i = 0; i < 32; i++) {
                 for (let j = 0; j < 32; j++) {
-                    //TODO: Implement addressing tiles as -127 to 127 as well
-                    let tileToWrite = tiles[bgTiles[i * 32 + j]]
+                    let tileNo = bgTiles[i * 32 + j]
+                    if (signed) {
+                        tileNo = tileNo >= 128 ? tileNo - 128 : tileNo + 128
+                        tileNo = tileNo + 128
+                    }
+                    let tileToWrite = tiles[tileNo]
                     tileToWrite.forEach((row, y) => {
                         row.forEach((pixel, x) => {
                             let bgX = j * 8 + x;
@@ -433,6 +443,95 @@ let emu = function (outputDebugInfo) {
         }
         outputDebugInfo(getDebugInfo())
     }
+
+    let keysPressed = {
+        left: false,
+        right: false,
+        up: false,
+        down: false,
+        a: false,
+        b: false,
+        select: false,
+        start: false
+    }
+
+    let moveKeysToMemory = () => {
+        let lowerNibble = 0xf
+        if (mem.readByte(0xFF00) & 0x10) {
+            //Button keys
+            if (keysPressed.a) {
+                lowerNibble = lowerNibble ^ 0x1
+            }
+            if (keysPressed.b) {
+                lowerNibble = lowerNibble ^ 0b10
+            }
+            if (keysPressed.select) {
+                lowerNibble = lowerNibble ^ 0b100
+            }
+            if (keysPressed.start) {
+                lowerNibble = lowerNibble ^ 0b1000
+            }
+        } else if (mem.readByte(0xFF00) & 0x20) {
+            //Direction keys
+            if (keysPressed.right) {
+                lowerNibble = lowerNibble ^ 0x1
+            }
+            if (keysPressed.left) {
+                lowerNibble = lowerNibble ^ 0b10
+            }
+            if (keysPressed.up) {
+                lowerNibble = lowerNibble ^ 0b100
+            }
+            if (keysPressed.down) {
+                lowerNibble = lowerNibble ^ 0b1000
+            }
+        }
+        mem.setByte(0xFF00, (mem.readByte(0xFF00) & 0xF0) + lowerNibble, true)
+    }
+
+    document.querySelector(`body`).addEventListener(`keydown`, (ev) => {
+        switch (ev.code) {
+            case 'ArrowRight':
+                keysPressed.right = true; break
+            case 'ArrowLeft':
+                keysPressed.left = true; break
+            case 'ArrowDown':
+                keysPressed.down = true; break
+            case 'ArrowUp':
+                keysPressed.up = true; break
+            case 'Enter':
+                keysPressed.start = true; break
+            case 'Space':
+                keysPressed.select = true; break
+            case 'KeyZ':
+                keysPressed.a = true; break
+            case 'KeyX':
+                keysPressed.b = true; break
+        }
+        interrupts.joypad()
+    })
+
+    document.querySelector(`body`).addEventListener(`keyup`, (ev) => {
+        switch (ev.code) {
+            case 'ArrowRight':
+                keysPressed.right = false; break
+            case 'ArrowLeft':
+                keysPressed.left = false; break
+            case 'ArrowDown':
+                keysPressed.down = false; break
+            case 'ArrowUp':
+                keysPressed.up = false; break
+            case 'Enter':
+                keysPressed.start = false; break
+            case 'Space':
+                keysPressed.select = false; break
+            case 'KeyZ':
+                keysPressed.a = false; break
+            case 'KeyX':
+                keysPressed.b = false; break
+        }
+        interrupts.joypad()
+    })
 
     return {
         start: () => {stopped = false; cyclesRan = 0; loop()},
