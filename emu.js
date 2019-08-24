@@ -111,7 +111,7 @@ let emu = function (outputDebugInfo) {
     //4a. Read game into memory
     //TODO: Implement banks overall
     for (let i = 0; i < 0x8000 && i < game.length; i++) {
-        mem.setByte(i, game[i])
+        mem.setByte(i, game[i], true)
     }
 
     let interrupts = (()=>{

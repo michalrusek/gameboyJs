@@ -517,10 +517,10 @@ function z80 (mem, runInterruptsFunction) {
     let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        // history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
-        // if (history.length > 100) {
-        //     history.shift()
-        // }
+        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        if (history.length > 1000) {
+            history.shift()
+        }
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
