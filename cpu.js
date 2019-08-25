@@ -42,7 +42,7 @@ function z80 (mem, runInterruptsFunction) {
         while (n >= 0 && !stopped) {
             if (breakPoints.includes(pc) && !firstInstr) {
                 console.log(`Hit breakpoint at ${pc.toString(16)}`)
-                return 0
+                return -1
             } else {
                 firstInstr = false
             }
@@ -231,7 +231,7 @@ function z80 (mem, runInterruptsFunction) {
         'd': ()=>{r.c = decByte(r.c); pc = pc + 1; return 4},
         'e': ()=>{r.c = mem.readByte(pc + 1); pc = pc + 2; return 8},
         'f': ()=>{cb(15); f.z = 0; pc = pc + 1; return 4},
-        '10': ()=>{/*stopped = true; */pc = pc + 1; return 4},
+        '10': ()=>{/*stopped = true;*/ pc = pc + 1; return 4},
         '11': ()=>{de(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '12': ()=>{mem.setByte(de(), r.a); pc = pc + 1; return 8},
         '13': ()=>{if (de() == 0xFFFF) {de(0)} else {de(de() + 1)} pc = pc + 1; return 8},
@@ -259,7 +259,7 @@ function z80 (mem, runInterruptsFunction) {
             }
         },
         '21': ()=>{hl(mem.readWord(pc + 1)); pc = pc + 3; return 12},
-        '22': ()=>{mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) } pc = pc + 1; return 8},
+        '22': ()=>{mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) }; pc = pc + 1; return 8},
         '23': ()=>{if (hl() == 0xFFFF) {hl(0)} else {hl(hl() + 1)} pc = pc + 1; return 8},
         '24': ()=>{r.h = incByte(r.h); pc = pc + 1; return 4},
         '25': ()=>{r.h = decByte(r.h); pc = pc + 1; return 4},
@@ -511,10 +511,11 @@ function z80 (mem, runInterruptsFunction) {
     let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        history.push(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
         if (history.length > 1000) {
             history.shift()
         }
+
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
@@ -524,6 +525,9 @@ function z80 (mem, runInterruptsFunction) {
         // }
         lastInstr = instr.toString(16)
         uniqueInstr[instr.toString(16)] = 1
+        if (instr == 0xCB) {
+            debugger
+        }
         try {
             if (opcodes[instr.toString(16).toLowerCase()]) return opcodes[instr.toString(16).toLowerCase()]()
         } catch (e) {throw new Error(`Instr ${instr.toString(16).toLowerCase()} error: ${e.toString()}; PC: ${pc.toString(16)}; FULL: ${e.stack}`)}
@@ -531,6 +535,7 @@ function z80 (mem, runInterruptsFunction) {
 
     let interrupt = (addr) => {
         if (IME) {
+            history.push(`Interrupt at ${addr}`)
             IME = false
             call(addr)
             stopped = false
@@ -556,6 +561,7 @@ function z80 (mem, runInterruptsFunction) {
     return {
         runCycles,
         interrupt,
+        resume: () => {stopped = false},
         getRegisters: () => {
             return {pc, sp, hl: mem.readByte(hl()), ...r}
         },

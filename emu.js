@@ -55,11 +55,14 @@ let emu = function (outputDebugInfo) {
         //TODO: Rename `force` to something else
         let setByte = (addr, val, force) => {
             val = Math.abs(val)
+            if ((addr == 0xCff5 || addr == 0xCff6) && val == 0x39) {
+                debugger
+            }
             addr = adjust(addr); 
             //VRAM is only accessible during some of the PPU states, not all of them
-            if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
-                return
-            }
+            // if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
+            //     return
+            // }
             // //IO stuff - 0xFF00 - 0xFF80?
             if (addr == 0xFF00 && !force) {
                 //Joypad IO
@@ -68,15 +71,19 @@ let emu = function (outputDebugInfo) {
                 moveKeysToMemory()
                 return
             }
-            if (addr == 0xFF04) {memory[addr] = 0; return}
-            if (addr == 0xFF05) {memory[addr] = 0; return}
+            if (addr == 0xFF04 && !force) {memory[addr] = 0; return}
+            if (addr == 0xFF05 && !force) {memory[addr] = 0; return}
             if (addr == 0xFF0F && !force) {
                 addr = adjust(addr); memory[addr] = val & 0xFF
                 interrupts.run();
+                return
             }
-            if (addr == 0xFF41) {
-                    memory[addr] &= ~ 120;
-                    memory[addr] |= (val & ~135);
+            if (addr == 0xFF41 && !force) {
+                    //The first 3 bits are read only for CPU
+                    val = val & 0b11111000
+                    oldVal = mem.readByte(addr)
+                    oldVal = oldVal & 0b111
+                    memory[addr] = (val + oldVal)
                     return
             }
             if (addr == 0xFF46) {
@@ -86,8 +93,12 @@ let emu = function (outputDebugInfo) {
                 dmaTransfer(val)
                 return
             }
-            // ??
+            // OAM memory gets filled during dmaTransfer
             if (addr >= 0xFE00 && addr <= 0xFE9F && !force) {
+                return
+            }
+            if (addr >= 0xFEA0 && addr <= 0xFEFF) {
+                //Unused
                 return
             }
             memory[addr] = val & 0xFF
@@ -124,10 +135,10 @@ let emu = function (outputDebugInfo) {
             mem.setByte(0xFF0F, iflag, true)
         }
 
-        let vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1); run()}
-        let lcd = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10); run()}
-        let timer = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b100); run()}
-        let joypad = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10000); run()}
+        let vblank = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b1), true; run()}
+        let lcd = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10, true); run()}
+        let timer = () => {mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b100, true); run()}
+        let joypad = () => {cpu.resume(), mem.setByte(0xFF0F, mem.readByte(0xFF0F) | 0b10000, true); run()}
         return {
             vblank, lcd, run, timer, joypad
         }
@@ -325,7 +336,7 @@ let emu = function (outputDebugInfo) {
                 if(vstat == 154) vstat = 0;
              }
 
-             mem.setByte(0xFF41, lcdstat);
+             mem.setByte(0xFF41, lcdstat, true);
              mem.setByte(0xFF44, vstat);
 
              hstat++;
@@ -349,7 +360,7 @@ let emu = function (outputDebugInfo) {
         let update = (n) => {
             //Divider always updates
             dividerClock = dividerClock + n
-            if (dividerClock >= 257) {dividerClock = dividerClock % 257; let divider = mem.readByte(divAddr); if (divider == 0xFF) {mem.setByte(divAddr, 0)} else {mem.setByte(divAddr, divider + 1)}}
+            if (dividerClock >= 257) {dividerClock = dividerClock % 257; let divider = mem.readByte(divAddr); if (divider == 0xFF) {mem.setByte(divAddr, 0, true)} else {mem.setByte(divAddr, divider + 1, true)}}
             
             //Timer only updates if it's enabled
             //TAC:
@@ -383,7 +394,7 @@ let emu = function (outputDebugInfo) {
                     } else {
                         tima = tima + 1
                     }
-                    mem.setByte(timaAddr, tima)
+                    mem.setByte(timaAddr, tima, true)
                     timerClock = timerClock - d
                 }
             }
@@ -413,7 +424,7 @@ let emu = function (outputDebugInfo) {
             try{
                 //4,213,440 CPU ticks each second, 154 scanlines per frame - draw 2 frames
                 for (let i = 0; i < 154 * 4; i++) {
-                    stopped = cpu.runCycles(114) <= 0
+                    stopped = cpu.runCycles(114) < 0
                     gpu.update()
                     timers.update(114)
                     if (stopped) {
@@ -423,7 +434,7 @@ let emu = function (outputDebugInfo) {
             } catch (e) {
                 throw(e);
             }
-            // console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
+            console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
             outputDebugInfo(getDebugInfo())
 
         }
