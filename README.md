@@ -1,7 +1,8 @@
 What practical things works:  
-- Boot rom works fully  
-- Tetris goes into the menu, but does not go into actual gameplay:  
-![Alt text](/img/tetris.PNG?raw=true "Tetris menu")  
+- Boot rom works fully
+- Some of the CPU Blargg's tests are passing as well  
+- Tetris goes into the menu, is able to go through menu, but does not go into actual gameplay (probably an issue with the STOP state of CPU as PC is not changing):  
+![Alt text](/img/tetrisrun.gif?raw=true "Tetris menu")  
 
 What was tested but doesn't work:  
 - Dr Mario game

@@ -4,7 +4,6 @@ let emu = function (outputDebugInfo) {
         throw new Error(`Game was not initialized!`)
     }
 
-    let tetrisHack = true
     let stopped = false
 
     //2. Initialize memory (also see http://bgb.bircd.org/pandocs.htm#powerupsequence)
@@ -27,7 +26,7 @@ let emu = function (outputDebugInfo) {
         FF80	FFFE	                        High RAM (HRAM)	
         FFFF	FFFF	                        Interrupts Enable Register (IE)	
         */
-        let memory = new Uint8Array(0xFFFF + 1)
+        let memory = new Array(0xFFFF + 1)
         for (let i = 0; i < 0x10000; i++) {
             memory[i] = 0
         }
@@ -55,14 +54,13 @@ let emu = function (outputDebugInfo) {
         let readByte = (addr) => {addr = adjust(addr); return memory[addr]}
         //TODO: Rename `force` to something else
         let setByte = (addr, val, force) => {
-            if(addr == 0xFF80 && tetrisHack) {
-                return
-            }
+            val = Math.abs(val)
+            addr = adjust(addr); 
             //VRAM is only accessible during some of the PPU states, not all of them
             if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
                 return
             }
-            //IO stuff - 0xFF00 - 0xFF80?
+            // //IO stuff - 0xFF00 - 0xFF80?
             if (addr == 0xFF00 && !force) {
                 //Joypad IO
                 let oldVal = mem.readByte(addr)
@@ -92,7 +90,7 @@ let emu = function (outputDebugInfo) {
             if (addr >= 0xFE00 && addr <= 0xFE9F && !force) {
                 return
             }
-            addr = adjust(addr); memory[addr] = val & 0xFF
+            memory[addr] = val & 0xFF
         }
         let readSigned = (addr) => {addr = adjust(addr); return memory[addr] >= 128 ? memory[addr] - 256 : memory[addr]}
         let readWord = (addr) => {addr = adjust(addr); return (memory[addr] + (memory[addr + 1] << 8))}
@@ -402,6 +400,8 @@ let emu = function (outputDebugInfo) {
     let time = (new Date()).getTime()
 
     gpu.recalcTiles()
+
+
     let loop = function () {
         if (!stopped) {
             requestAnimationFrame(loop.bind(this))
@@ -423,9 +423,9 @@ let emu = function (outputDebugInfo) {
             } catch (e) {
                 throw(e);
             }
+            console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
             outputDebugInfo(getDebugInfo())
 
-            console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
         }
     }
 
@@ -457,7 +457,7 @@ let emu = function (outputDebugInfo) {
 
     let moveKeysToMemory = () => {
         let lowerNibble = 0xf
-        if (mem.readByte(0xFF00) & 0x10) {
+        if ((mem.readByte(0xFF00) & 0x10) == 0x10) {
             //Button keys
             if (keysPressed.a) {
                 lowerNibble = lowerNibble ^ 0x1
@@ -471,7 +471,7 @@ let emu = function (outputDebugInfo) {
             if (keysPressed.start) {
                 lowerNibble = lowerNibble ^ 0b1000
             }
-        } else if (mem.readByte(0xFF00) & 0x20) {
+        } else if ((mem.readByte(0xFF00) & 0x20) == 0x20) {
             //Direction keys
             if (keysPressed.right) {
                 lowerNibble = lowerNibble ^ 0x1
@@ -485,11 +485,16 @@ let emu = function (outputDebugInfo) {
             if (keysPressed.down) {
                 lowerNibble = lowerNibble ^ 0b1000
             }
+        } else if ((mem.readByte(0xFF00) & 0x30) == 0x30) {
+            return 0x30
         }
-        mem.setByte(0xFF00, (mem.readByte(0xFF00) & 0xF0) + lowerNibble, true)
+        if (lowerNibble != 0xf) {
+            console.log(`Lower nibble: ${lowerNibble.toString(2)}`)
+        }
+        mem.setByte(0xFF00, (mem.readByte(0xFF00) & 0xF0) + lowerNibble, true)        
     }
 
-    document.querySelector(`body`).addEventListener(`keydown`, (ev) => {
+    window.onkeydown = (ev) => {
         switch (ev.code) {
             case 'ArrowRight':
                 keysPressed.right = true; break
@@ -508,10 +513,11 @@ let emu = function (outputDebugInfo) {
             case 'KeyX':
                 keysPressed.b = true; break
         }
+        moveKeysToMemory()
         interrupts.joypad()
-    })
+    }
 
-    document.querySelector(`body`).addEventListener(`keyup`, (ev) => {
+    window.onkeyup = (ev) => {
         switch (ev.code) {
             case 'ArrowRight':
                 keysPressed.right = false; break
@@ -530,8 +536,8 @@ let emu = function (outputDebugInfo) {
             case 'KeyX':
                 keysPressed.b = false; break
         }
-        interrupts.joypad()
-    })
+        moveKeysToMemory()
+    }
 
     return {
         start: () => {stopped = false; cyclesRan = 0; loop()},

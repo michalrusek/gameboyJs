@@ -62,24 +62,6 @@ function z80 (mem, runInterruptsFunction) {
         // }
     }
 
-    let runCyclesUntil = function (n, when) {
-        while (n > 0 && !stopped) {
-            n = n - opcode(mem.readByte(pc))
-            syncFlagsToRegister()
-
-            //Just a sanity check - run through all registers and if any is above 0xFF then something went really wrong
-            for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
-            if (sp == 0xCFF7) {
-                debugger
-            }
-            if (pc == when) {
-                // logRegisters()
-                return true
-            }
-        }
-        return false
-    }
-
     let cb = (instr) => {
         let valOrig = 0
         let valNew = 0
@@ -257,38 +239,38 @@ function z80 (mem, runInterruptsFunction) {
             //This is intended to be used after addition/substraction
             //The reason we have to adjust it is to handle overflows/underflows 
             //See: https://forums.nesdev.com/viewtopic.php?f=20&t=15944#p196282
-            // if (!f.n) {
-            //     //addition
-            //     if (f.c || (r.a > 0x99)) {r.a = r.a + 0x60; f.c = 1}
-            //     if (f.h || (r.a & 0xF) > 0x9) {r.a = r.a + 0x6}
-            // } else {
-            //     //substraction
-            //     if (f.c) {r.a = r.a - 0x60}
-            //     if (f.h) {r.a = r.a - 0x6}
-            // }
-            // r.a = r.a % 256
-            // // f.z = r.a == 0 ? 1 : 0
-            // // f.h = 0
-            let upper = r.a >> 4; 
-            let lower = (r.a|0) % 16 |0;
-            if(!f.n){
-                if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
-                else if(!f.c & !f.h & (upper|0) <= 8 & (lower|0) >= 10){f.c = 0; r.a = r.a + 0x06 |0}
-                else if(!f.c & f.h & (upper|0) <= 9 & (lower|0) <= 3){f.c = 0; r.a = r.a + 0x06 |0}
-                else if(!f.c & !f.h & (upper|0) >= 10 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
-                else if(!f.c & !f.h & (upper|0) >= 9 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
-                else if(!f.c & f.h & (upper|0) >= 10 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
-                else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
-                else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
-                else if(f.c & f.h & (upper|0) <= 3 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
+            if (!f.n) {
+                //addition
+                if (f.c || (r.a > 0x99)) {r.a = r.a + 0x60; f.c = 1}
+                if (f.h || (r.a & 0xF) > 0x9) {r.a = r.a + 0x6}
             } else {
-                if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
-                else if(!f.c & f.h & (upper|0) <= 8 & (lower|0) >= 6){f.c = 0; r.a = r.a + 0xFA |0}
-                else if(f.c & !f.h & (upper|0) >= 7 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0xA0 |0}
-                else if(f.c & f.h & (upper|0) >= 6 & (lower|0) >= 6){f.c = 1; r.a = r.a + 0x9A |0}
+                //substraction
+                if (f.c) {r.a = r.a - 0x60}
+                if (f.h) {r.a = r.a - 0x6}
             }
-            r.a = (r.a|0) % 256 |0;
-            pc = pc + 1
+            r.a = r.a % 256
+            f.z = r.a == 0 ? 1 : 0
+            f.h = 0
+            // let upper = r.a >> 4; 
+            // let lower = (r.a|0) % 16 |0;
+            // if(!f.n){
+            //     if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
+            //     else if(!f.c & !f.h & (upper|0) <= 8 & (lower|0) >= 10){f.c = 0; r.a = r.a + 0x06 |0}
+            //     else if(!f.c & f.h & (upper|0) <= 9 & (lower|0) <= 3){f.c = 0; r.a = r.a + 0x06 |0}
+            //     else if(!f.c & !f.h & (upper|0) >= 10 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
+            //     else if(!f.c & !f.h & (upper|0) >= 9 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
+            //     else if(!f.c & f.h & (upper|0) >= 10 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
+            //     else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
+            //     else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
+            //     else if(f.c & f.h & (upper|0) <= 3 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
+            // } else {
+            //     if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
+            //     else if(!f.c & f.h & (upper|0) <= 8 & (lower|0) >= 6){f.c = 0; r.a = r.a + 0xFA |0}
+            //     else if(f.c & !f.h & (upper|0) >= 7 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0xA0 |0}
+            //     else if(f.c & f.h & (upper|0) >= 6 & (lower|0) >= 6){f.c = 1; r.a = r.a + 0x9A |0}
+            // }
+            // r.a = (r.a|0) % 256 |0;
+            // pc = pc + 1
             return 4
         },
         '28': ()=>{if (f.z == 1) {pc = pc + 1; pc = pc + mem.readSigned(pc) + 1; return 12} else {pc = pc + 2; return 8}},
@@ -517,10 +499,10 @@ function z80 (mem, runInterruptsFunction) {
     let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
-        if (history.length > 1000) {
-            history.shift()
-        }
+        // history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        // if (history.length > 1000) {
+        //     history.shift()
+        // }
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
@@ -538,8 +520,8 @@ function z80 (mem, runInterruptsFunction) {
     let interrupt = (addr) => {
         if (IME) {
             IME = false
-            stopped = false
             call(addr)
+            stopped = false
             return true
         } else {
             return false
@@ -562,8 +544,6 @@ function z80 (mem, runInterruptsFunction) {
     return {
         runCycles,
         interrupt,
-        step,
-        runCyclesUntil,
         getRegisters: () => {
             return {pc, sp, hl: mem.readByte(hl()), ...r}
         },
