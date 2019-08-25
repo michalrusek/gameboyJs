@@ -423,7 +423,7 @@ let emu = function (outputDebugInfo) {
             } catch (e) {
                 throw(e);
             }
-            console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
+            // console.log(`Frame time: ${((new Date()).getTime() - time)}ms.`); time = (new Date()).getTime()
             outputDebugInfo(getDebugInfo())
 
         }

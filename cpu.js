@@ -52,7 +52,7 @@ function z80 (mem, runInterruptsFunction) {
             syncFlagsToRegister()
 
             //Just a sanity check - run through all registers and if any is above 0xFF then something went really wrong
-            for (let key in r) {if (r[key] > 0xFF) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
+            for (let key in r) {if (r[key] > 0xFF | isNaN(r[key]) | r[key] < 0) {logRegisters(); throw new Error(`Register ${key} has invalid value: ${r[key]}`)}}
         }
         return cyclesRan
 
@@ -158,8 +158,23 @@ function z80 (mem, runInterruptsFunction) {
         } 
         return a - 1
     }
-    let sbc = (a, b) => {return sub(a, b + f.c)}
-    let sub = (a, b) => {f.n = 1; let res = a - b; f.c = res < 0 ? 1 : 0; f.z = res == 0 ? 1 : 0; f.h = (a % 0x10) - (b % 0x10) < 0 ? 1 : 0; return (res + 256) % 256}
+    let sub = (a, b) => {
+        f.n = 1; 
+        let res = a - b; 
+        f.c = res < 0 ? 1 : 0; 
+        f.z = res == 0 ? 1 : 0; 
+        f.h = (a % 0x10) - (b % 0x10) < 0 ? 1 : 0; 
+        return (res + 256) % 256
+    }
+    let sbc = (a, b) => {
+        f.n = 1
+        let res = a - b - f.c
+        let resFinal = res & 0xFF
+        f.z = resFinal == 0 ? 1 : 0
+        f.h = ((a & 0xF) - (b & 0xF) - f.c) < 0 ? 1 : 0
+        f.c = res < 0 ? 1 : 0
+        return resFinal
+    }
     let add = (a, b) => {
         f.n = 0; 
         let res = a + b; 
@@ -167,7 +182,15 @@ function z80 (mem, runInterruptsFunction) {
         f.z = (res % 256) == 0 ? 1 : 0; 
         f.h = ((a % 0x10) + (b % 0x10)) > 0xF ? 1 : 0; 
         return res % 256}
-    let adc = (a, b) => {return add(a, b + f.c)}
+    let adc = (a, b) => {
+        f.n = 0
+        let res = a + b + f.c
+        let resFinal = res & 0xFF
+        f.z = resFinal == 0 ? 1 : 0
+        f.h = ((a & 0xF) + (b & 0xF) + f.c) > 0xF ? 1 : 0
+        f.c = res > 0xFF ? 1 : 0
+        return resFinal
+    }
     let addWord = (a, b) => {
         f.n = 0;
         if (b < 0) {b = b + 0x10000}
@@ -175,6 +198,13 @@ function z80 (mem, runInterruptsFunction) {
         f.c = (res > 0xFFFF) ? 1 : 0; 
         f.h = (a % 0x1000) + (b % 0x1000) > 0xFFF ? 1 : 0; 
         return res % 0x10000
+    }
+    let addSignedToWord = (word, signed) => {
+        f.n = 0;
+        let res = word + signed;
+        f.c = (((word ^ signed ^ (res & 0xFFFF)) & 0x100) == 0x100) ? 1 : 0; 
+        f.h = (((word ^ signed ^ (res & 0xFFFF)) & 0x10) == 0x10) ? 1 : 0;
+        return res & 0xFFFF
     }
     let call = (addr) => {
         if (sp == 0) {throw new Error(`SP going lower than 0.`)} 
@@ -192,7 +222,7 @@ function z80 (mem, runInterruptsFunction) {
         '4': ()=>{r.b = incByte(r.b); pc = pc + 1; return 4},
         '5': ()=>{r.b = decByte(r.b); pc = pc + 1; return 4},
         '6': ()=>{pc = pc + 1; r.b = mem.readByte(pc); pc = pc + 1; return 8},
-        '7': ()=>{cb(7); pc = pc + 1; return 4},
+        '7': ()=>{cb(7); f.z = 0; pc = pc + 1; return 4},
         '8': ()=>{mem.setWord(mem.readWord(pc + 1), sp); pc = pc + 3; return 20},
         '9': ()=>{hl(addWord(hl(), bc())); pc = pc + 1; return 8},
         'a': ()=>{r.a = mem.readByte(bc()); pc = pc + 1; return 8},
@@ -200,15 +230,15 @@ function z80 (mem, runInterruptsFunction) {
         'c': ()=>{r.c = incByte(r.c); pc = pc + 1; return 4},
         'd': ()=>{r.c = decByte(r.c); pc = pc + 1; return 4},
         'e': ()=>{r.c = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        'f': ()=>{cb(15); pc = pc + 1; return 4},
-        '10': ()=>{stopped = true; pc = pc + 1; return 4},
+        'f': ()=>{cb(15); f.z = 0; pc = pc + 1; return 4},
+        '10': ()=>{/*stopped = true; */pc = pc + 1; return 4},
         '11': ()=>{de(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '12': ()=>{mem.setByte(de(), r.a); pc = pc + 1; return 8},
         '13': ()=>{if (de() == 0xFFFF) {de(0)} else {de(de() + 1)} pc = pc + 1; return 8},
         '14': ()=>{r.d = incByte(r.d); pc = pc + 1; return 4},
         '15': ()=>{r.d = decByte(r.d); pc = pc + 1; return 4},
         '16': ()=>{r.d = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '17': ()=>{pc = pc + 1; cb(23); return 4;},
+        '17': ()=>{pc = pc + 1; cb(23); f.z = 0; return 4;},
         '18': ()=>{pc = pc + 1; pc = pc + mem.readSigned(pc) + 1; return 12},
         '19': ()=>{hl(addWord(hl(), de())); pc = pc + 1; return 8},
         '1a': ()=>{r.a = mem.readByte(de()); pc = pc + 1; return 8},
@@ -216,7 +246,7 @@ function z80 (mem, runInterruptsFunction) {
         '1c': ()=>{r.e = incByte(r.e); pc = pc + 1; return 4},
         '1d': ()=>{r.e = decByte(r.e); pc = pc + 1; return 4},
         '1e': ()=>{r.e = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '1f': ()=>{cb(31); pc = pc + 1; return 4},
+        '1f': ()=>{cb(31); f.z = 0; pc = pc + 1; return 4},
         '20': ()=>{
             if (f.z == 0) {
                 pc = pc + 1; 
@@ -248,29 +278,10 @@ function z80 (mem, runInterruptsFunction) {
                 if (f.c) {r.a = r.a - 0x60}
                 if (f.h) {r.a = r.a - 0x6}
             }
-            r.a = r.a % 256
+            r.a = Math.abs(r.a) % 256
             f.z = r.a == 0 ? 1 : 0
             f.h = 0
-            // let upper = r.a >> 4; 
-            // let lower = (r.a|0) % 16 |0;
-            // if(!f.n){
-            //     if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
-            //     else if(!f.c & !f.h & (upper|0) <= 8 & (lower|0) >= 10){f.c = 0; r.a = r.a + 0x06 |0}
-            //     else if(!f.c & f.h & (upper|0) <= 9 & (lower|0) <= 3){f.c = 0; r.a = r.a + 0x06 |0}
-            //     else if(!f.c & !f.h & (upper|0) >= 10 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
-            //     else if(!f.c & !f.h & (upper|0) >= 9 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
-            //     else if(!f.c & f.h & (upper|0) >= 10 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
-            //     else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0x60 |0}
-            //     else if(f.c & !f.h & (upper|0) <= 2 & (lower|0) >= 10){f.c = 1; r.a = r.a + 0x66 |0}
-            //     else if(f.c & f.h & (upper|0) <= 3 & (lower|0) <= 3){f.c = 1; r.a = r.a + 0x66 |0}
-            // } else {
-            //     if(!f.c & !f.h & (upper|0) <= 9 & (lower|0) <= 9){f.c = 0;}
-            //     else if(!f.c & f.h & (upper|0) <= 8 & (lower|0) >= 6){f.c = 0; r.a = r.a + 0xFA |0}
-            //     else if(f.c & !f.h & (upper|0) >= 7 & (lower|0) <= 9){f.c = 1; r.a = r.a + 0xA0 |0}
-            //     else if(f.c & f.h & (upper|0) >= 6 & (lower|0) >= 6){f.c = 1; r.a = r.a + 0x9A |0}
-            // }
-            // r.a = (r.a|0) % 256 |0;
-            // pc = pc + 1
+            pc = pc + 1
             return 4
         },
         '28': ()=>{if (f.z == 1) {pc = pc + 1; pc = pc + mem.readSigned(pc) + 1; return 12} else {pc = pc + 2; return 8}},
@@ -466,11 +477,12 @@ function z80 (mem, runInterruptsFunction) {
         'e6': ()=>{r.a = and(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'e7': ()=>{pc = pc + 1; call(0x20); return 16},
         'e8': ()=>{
-            sp = addWord(sp, mem.readSigned(pc + 1)); 
+            sp = addSignedToWord(sp, mem.readSigned(pc + 1)); 
             sp = (sp + 0x10000) % 0x10000; 
             f.z = 0;
             pc = pc + 2; 
-            return 16},
+            return 16
+        },
         'e9': ()=>{pc = hl(); return 4},
         'ea': ()=>{mem.setByte(mem.readWord(pc + 1), r.a); pc = pc + 3; return 16},
         'eb': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
@@ -486,7 +498,7 @@ function z80 (mem, runInterruptsFunction) {
         'f5': ()=>{sp = sp - 2;  sp = sp & 0xFFFF; mem.setWord(sp, af()); pc = pc + 1; return 16},
         'f6': ()=>{r.a = or(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'f7': ()=>{pc = pc + 1; call(0x30); return 16},
-        'f8': ()=>{hl(addWord(sp, mem.readSigned(pc + 1))); f.z = 0; pc = pc + 2; return 12},
+        'f8': ()=>{hl(addSignedToWord(sp, mem.readSigned(pc + 1))); f.z = 0; pc = pc + 2; return 12},
         'f9': ()=>{sp = hl(); pc = pc + 1; return 8},
         'fa': ()=>{r.a = mem.readByte(mem.readWord(pc + 1)); pc = pc + 3; return 16},
         'fb': ()=>{IME = true; pc = pc + 1; runInterruptsFunction(); return 4;},
@@ -499,10 +511,10 @@ function z80 (mem, runInterruptsFunction) {
     let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        // history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
-        // if (history.length > 1000) {
-        //     history.shift()
-        // }
+        history.push(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        if (history.length > 1000) {
+            history.shift()
+        }
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
