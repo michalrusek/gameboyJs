@@ -55,10 +55,11 @@ let emu = function (outputDebugInfo) {
         //TODO: Rename `force` to something else
         let setByte = (addr, val, force) => {
             val = Math.abs(val)
-            if ((addr == 0xCff5 || addr == 0xCff6) && val == 0x39) {
-                debugger
-            }
             addr = adjust(addr); 
+            if (addr >= 0x0 && addr <= 0x8000 && !force) {
+                //TODO: Implement MBC; just return for now
+                return
+            }
             //VRAM is only accessible during some of the PPU states, not all of them
             // if (addr >= 0x8000 && addr < 0x9800 && ((mem.readByte(0xFF41) & 3) > 2)) {
             //     return
@@ -129,9 +130,9 @@ let emu = function (outputDebugInfo) {
             //TODO: Implement the rest of the interrupts
             let iflag = mem.readByte(0xFF0F); let ienabled = mem.readByte(0xFFFF)
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
-            if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {iflag = iflag ^ 0b10}
-            if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
-            if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
+            // if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {debugger; iflag = iflag ^ 0b10}
+            // if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
+            // if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
             mem.setByte(0xFF0F, iflag, true)
         }
 

@@ -36,10 +36,24 @@ function z80 (mem, runInterruptsFunction) {
         ", " + mem.readByte(pc + 2).toString(16))
     }
 
+    window.historyCpu = []
+    let loggingEnabled = 0
+    window.log = (msg) => {
+        if (loggingEnabled) {
+            historyCpu.push(msg)
+            if (historyCpu.length > 10000) {
+                historyCpu.shift()
+            }
+        }
+    }
+
     let runCycles = function (n) {
         let cyclesRan = 0;
         let firstInstr = true
         while (n >= 0 && !stopped) {
+            // if (pc == 0x41) {
+            //     debugger
+            // }
             if (breakPoints.includes(pc) && !firstInstr) {
                 console.log(`Hit breakpoint at ${pc.toString(16)}`)
                 return -1
@@ -217,12 +231,12 @@ function z80 (mem, runInterruptsFunction) {
     let opcodes = {
         '0': ()=>{pc = pc + 1; return 4;},
         '1': ()=>{bc(mem.readWord(pc + 1)); pc = pc + 3; return 12},
-        '2': ()=>{mem.setByte(bc(), r.a); pc = pc + 1; return 8},
+        '2': ()=>{pc = pc + 1; mem.setByte(bc(), r.a); return 8},
         '3': ()=>{let val = bc(); if (val == 0xFFFF) {bc(0)} else {bc(val + 1)} pc = pc + 1; return 8},
         '4': ()=>{r.b = incByte(r.b); pc = pc + 1; return 4},
         '5': ()=>{r.b = decByte(r.b); pc = pc + 1; return 4},
         '6': ()=>{pc = pc + 1; r.b = mem.readByte(pc); pc = pc + 1; return 8},
-        '7': ()=>{cb(7); f.z = 0; pc = pc + 1; return 4},
+        '7': ()=>{pc = pc + 1; cb(7); f.z = 0; return 4},
         '8': ()=>{mem.setWord(mem.readWord(pc + 1), sp); pc = pc + 3; return 20},
         '9': ()=>{hl(addWord(hl(), bc())); pc = pc + 1; return 8},
         'a': ()=>{r.a = mem.readByte(bc()); pc = pc + 1; return 8},
@@ -230,10 +244,10 @@ function z80 (mem, runInterruptsFunction) {
         'c': ()=>{r.c = incByte(r.c); pc = pc + 1; return 4},
         'd': ()=>{r.c = decByte(r.c); pc = pc + 1; return 4},
         'e': ()=>{r.c = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        'f': ()=>{cb(15); f.z = 0; pc = pc + 1; return 4},
+        'f': ()=>{pc = pc + 1; cb(15); f.z = 0; return 4},
         '10': ()=>{/*stopped = true;*/ pc = pc + 1; return 4},
         '11': ()=>{de(mem.readWord(pc + 1)); pc = pc + 3; return 12},
-        '12': ()=>{mem.setByte(de(), r.a); pc = pc + 1; return 8},
+        '12': ()=>{pc = pc + 1; mem.setByte(de(), r.a); return 8},
         '13': ()=>{if (de() == 0xFFFF) {de(0)} else {de(de() + 1)} pc = pc + 1; return 8},
         '14': ()=>{r.d = incByte(r.d); pc = pc + 1; return 4},
         '15': ()=>{r.d = decByte(r.d); pc = pc + 1; return 4},
@@ -246,7 +260,7 @@ function z80 (mem, runInterruptsFunction) {
         '1c': ()=>{r.e = incByte(r.e); pc = pc + 1; return 4},
         '1d': ()=>{r.e = decByte(r.e); pc = pc + 1; return 4},
         '1e': ()=>{r.e = mem.readByte(pc + 1); pc = pc + 2; return 8},
-        '1f': ()=>{cb(31); f.z = 0; pc = pc + 1; return 4},
+        '1f': ()=>{pc = pc + 1; cb(31); f.z = 0; return 4},
         '20': ()=>{
             if (f.z == 0) {
                 pc = pc + 1; 
@@ -259,7 +273,7 @@ function z80 (mem, runInterruptsFunction) {
             }
         },
         '21': ()=>{hl(mem.readWord(pc + 1)); pc = pc + 3; return 12},
-        '22': ()=>{mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) }; pc = pc + 1; return 8},
+        '22': ()=>{pc = pc + 1; mem.setByte(hl(), r.a); if (hl() == 0xFFFF) { hl(0) } else { hl(hl() + 1) }; return 8},
         '23': ()=>{if (hl() == 0xFFFF) {hl(0)} else {hl(hl() + 1)} pc = pc + 1; return 8},
         '24': ()=>{r.h = incByte(r.h); pc = pc + 1; return 4},
         '25': ()=>{r.h = decByte(r.h); pc = pc + 1; return 4},
@@ -294,11 +308,11 @@ function z80 (mem, runInterruptsFunction) {
         '2f': ()=>{r.a = r.a ^ 0xFF; f.n = 1; f.h = 1; pc = pc + 1; return 4},
         '30': ()=>{if (f.c == 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
         '31': ()=>{sp = mem.readWord(pc + 1); pc = pc + 3; return 12},
-        '32': ()=>{mem.setByte(hl(), r.a); if (hl() == 0) { hl(0xFFFF) } else { hl(hl() - 1) } pc = pc + 1; return 8},
+        '32': ()=>{pc = pc + 1; mem.setByte(hl(), r.a); if (hl() == 0) { hl(0xFFFF) } else { hl(hl() - 1) } return 8},
         '33': ()=>{if (sp == 0xFFFF) {sp = 0} else {sp = sp + 1} pc = pc + 1; return 8},
-        '34': ()=>{mem.setByte(hl(), incByte(mem.readByte(hl()))); pc = pc + 1; return 12},
-        '35': ()=>{mem.setByte(hl(), decByte(mem.readByte(hl()))); pc = pc + 1; return 12},
-        '36': ()=>{mem.setByte(hl(), mem.readByte(pc + 1)); pc = pc + 2; return 12},
+        '34': ()=>{pc = pc + 1; mem.setByte(hl(), incByte(mem.readByte(hl()))); return 12},
+        '35': ()=>{pc = pc + 1; mem.setByte(hl(), decByte(mem.readByte(hl()))); return 12},
+        '36': ()=>{pc = pc + 2; mem.setByte(hl(), mem.readByte(pc - 1)); return 12},
         '37': ()=>{f.n = 0; f.h = 0; f.c = 1; pc = pc + 1; return 4},
         '38': ()=>{if (f.c != 0) {pc = pc + 1; let val = mem.readSigned(pc); pc = pc + val + 1; return 12} else {pc = pc + 2; return 8}},
         '39': ()=>{hl(addWord(hl(), sp)); pc = pc + 1; return 8},
@@ -356,14 +370,14 @@ function z80 (mem, runInterruptsFunction) {
         '6d': ()=>{r.l = r.l; pc = pc + 1; return 4},
         '6e': ()=>{r.l = mem.readByte(hl()); pc = pc + 1; return 8},
         '6f': ()=>{r.l = r.a; pc = pc + 1; return 4},
-        '70': ()=>{mem.setByte(hl(), r.b); pc = pc + 1; return 8},
-        '71': ()=>{mem.setByte(hl(), r.c); pc = pc + 1; return 8},
-        '72': ()=>{mem.setByte(hl(), r.d); pc = pc + 1; return 8},
-        '73': ()=>{mem.setByte(hl(), r.e); pc = pc + 1; return 8},
-        '74': ()=>{mem.setByte(hl(), r.h); pc = pc + 1; return 8},
-        '75': ()=>{mem.setByte(hl(), r.l); pc = pc + 1; return 8},
+        '70': ()=>{pc = pc + 1; mem.setByte(hl(), r.b); return 8},
+        '71': ()=>{pc = pc + 1; mem.setByte(hl(), r.c); return 8},
+        '72': ()=>{pc = pc + 1; mem.setByte(hl(), r.d); return 8},
+        '73': ()=>{pc = pc + 1; mem.setByte(hl(), r.e); return 8},
+        '74': ()=>{pc = pc + 1; mem.setByte(hl(), r.h); return 8},
+        '75': ()=>{pc = pc + 1; mem.setByte(hl(), r.l); return 8},
         '76': ()=>{if (IME) {stopped = true} pc = pc + 1; return 4},
-        '77': ()=>{mem.setByte(hl(), r.a); pc = pc + 1; return 8},
+        '77': ()=>{pc = pc + 1; mem.setByte(hl(), r.a); return 8},
         '78': ()=>{r.a = r.b; pc = pc + 1; return 4},
         '79': ()=>{r.a = r.c; pc = pc + 1; return 4},
         '7a': ()=>{r.a = r.d; pc = pc + 1; return 4},
@@ -447,7 +461,7 @@ function z80 (mem, runInterruptsFunction) {
         'c8': ()=>{if (f.z == 1) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
         'c9': ()=>{pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 16},
         'ca': ()=>{if (f.z == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
-        'cb': ()=>{let cyclos = cb(mem.readByte(pc + 1)); pc = pc + 2; return cyclos},
+        'cb': ()=>{pc = pc + 2; let cyclos = cb(mem.readByte(pc - 1)); return cyclos},
         'cc': ()=>{if (f.z == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
         'cd': ()=>{pc = pc + 3; call(mem.readWord(pc - 2)); return 24},
         'ce': ()=>{r.a = adc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
@@ -455,24 +469,24 @@ function z80 (mem, runInterruptsFunction) {
         'd0': ()=>{if (f.c == 0) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
         'd1': ()=>{de(mem.readWord(sp)); sp = sp + 2; sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'd2': ()=>{if (f.c == 0) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
-        'd3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'd3': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'd4': ()=>{if (f.c == 0) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
         'd5': ()=>{sp = sp - 2; sp = sp & 0xFFFF; mem.setWord(sp, de()); pc = pc + 1; return 16},
         'd6': ()=>{r.a = sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'd7': ()=>{pc = pc + 1; call(0x10); return 16},
         'd8': ()=>{if (f.c == 1) {pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; return 20} else {pc = pc + 1; return 8}},
-        'd9': ()=>{pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; IME = true; return 16},
+        'd9': ()=>{pc = mem.readWord(sp); sp = sp + 2; sp = sp & 0xFFFF; IME = true; runInterruptsFunction(); return 16},
         'da': ()=>{if (f.c == 1) {pc = mem.readWord(pc + 1); return 16} else {pc = pc + 3; return 12}},
-        'db': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'db': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'dc': ()=>{if (f.c == 1) {pc = pc + 3; call(mem.readWord(pc - 2)); return 24} else {pc = pc + 3; return 12}},
-        'dd': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'dd': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'de': ()=>{r.a = sbc(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'df': ()=>{pc = pc + 1; call(0x18); return 16},
-        'e0': ()=>{mem.setByte(0xFF00 + mem.readByte(pc + 1), r.a); pc = pc + 2; return 12},
+        'e0': ()=>{pc = pc + 2; mem.setByte(0xFF00 + mem.readByte(pc - 1), r.a); return 12},
         'e1': ()=>{hl(mem.readWord(sp)); sp = sp + 2; sp = sp & 0xFFFF; pc = pc + 1; return 12},
-        'e2': ()=>{mem.setByte(0xFF00 + r.c, r.a); pc = pc + 1; return 8},
-        'e3': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'e4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'e2': ()=>{pc = pc + 1; mem.setByte(0xFF00 + r.c, r.a); return 8},
+        'e3': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
+        'e4': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'e5': ()=>{sp = sp - 2;  sp = sp & 0xFFFF; mem.setWord(sp, hl()); pc = pc + 1; return 16},
         'e6': ()=>{r.a = and(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'e7': ()=>{pc = pc + 1; call(0x20); return 16},
@@ -484,17 +498,17 @@ function z80 (mem, runInterruptsFunction) {
             return 16
         },
         'e9': ()=>{pc = hl(); return 4},
-        'ea': ()=>{mem.setByte(mem.readWord(pc + 1), r.a); pc = pc + 3; return 16},
-        'eb': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'ec': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'ed': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'ea': ()=>{pc = pc + 3; mem.setByte(mem.readWord(pc - 2), r.a); return 16},
+        'eb': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
+        'ec': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
+        'ed': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'ee': ()=>{r.a = xor(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'ef': ()=>{pc = pc + 1; call(0x28); return 16},
         'f0': ()=>{r.a = mem.readByte(0xFF00 + mem.readByte(pc + 1)); pc = pc + 2; return 12},
         'f1': ()=>{af(mem.readWord(sp)); sp = sp + 2;  sp = sp & 0xFFFF; pc = pc + 1; return 12},
         'f2': ()=>{r.a = mem.readByte(0xFF00 + r.c); pc = pc + 1; return 8},
         'f3': ()=>{IME = false; pc = pc + 1; return 4},
-        'f4': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'f4': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'f5': ()=>{sp = sp - 2;  sp = sp & 0xFFFF; mem.setWord(sp, af()); pc = pc + 1; return 16},
         'f6': ()=>{r.a = or(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'f7': ()=>{pc = pc + 1; call(0x30); return 16},
@@ -502,20 +516,15 @@ function z80 (mem, runInterruptsFunction) {
         'f9': ()=>{sp = hl(); pc = pc + 1; return 8},
         'fa': ()=>{r.a = mem.readByte(mem.readWord(pc + 1)); pc = pc + 3; return 16},
         'fb': ()=>{IME = true; pc = pc + 1; runInterruptsFunction(); return 4;},
-        'fc': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
-        'fd': ()=>{throw new Error(`NOT AN INSTRUCTION`)},
+        'fc': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
+        'fd': ()=>{debugger; throw new Error(`NOT AN INSTRUCTION`)},
         'fe': ()=>{sub(r.a, mem.readByte(pc + 1)); pc = pc + 2; return 8},
         'ff': ()=>{pc = pc + 1; call(0x38); return 16}    
     }
     let lastInstr = 0;
-    let history = []
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        history.push(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
-        if (history.length > 1000) {
-            history.shift()
-        }
-
+        log(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
@@ -525,9 +534,6 @@ function z80 (mem, runInterruptsFunction) {
         // }
         lastInstr = instr.toString(16)
         uniqueInstr[instr.toString(16)] = 1
-        if (instr == 0xCB) {
-            debugger
-        }
         try {
             if (opcodes[instr.toString(16).toLowerCase()]) return opcodes[instr.toString(16).toLowerCase()]()
         } catch (e) {throw new Error(`Instr ${instr.toString(16).toLowerCase()} error: ${e.toString()}; PC: ${pc.toString(16)}; FULL: ${e.stack}`)}
@@ -535,11 +541,11 @@ function z80 (mem, runInterruptsFunction) {
 
     let interrupt = (addr) => {
         if (IME) {
-            history.push(`Interrupt at ${addr}`)
-            IME = false
-            call(addr)
-            stopped = false
-            return true
+            log(`Interrupt at ${addr.toString(16)}`);
+            IME = false;
+            call(addr);
+            stopped = false;
+            return true;
         } else {
             return false
         }
