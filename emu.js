@@ -130,9 +130,9 @@ let emu = function (outputDebugInfo) {
             //TODO: Implement the rest of the interrupts
             let iflag = mem.readByte(0xFF0F); let ienabled = mem.readByte(0xFFFF)
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
-            // if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {debugger; iflag = iflag ^ 0b10}
-            // if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
-            // if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
+            if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {debugger; iflag = iflag ^ 0b10}
+            if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
+            if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
             mem.setByte(0xFF0F, iflag, true)
         }
 
@@ -283,11 +283,14 @@ let emu = function (outputDebugInfo) {
                 let spritesDrawnOnLine = 0
                 for (let i = 0; i < sprites.length; i++) {
                     let sprite = sprites[i]
-                    if (lineNo >= sprite.y && lineNo < sprite.y + 8 && !sprite.prio) {
+                    if (lineNo >= sprite.y && lineNo < (sprite.y + 8)) {
                         //Draw
                         if (spritesDrawnOnLine <= 10) {
                             for (let j = 0; j < 8 ; j++) {
                                 if (j + sprite.x >=0 && j + sprite.x < 160) {
+                                    // console.log(`Drawing sprite!`)
+                                    //TODO: !sprite.prio
+                                    //For each pixel you should check the sprite priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
                                     frame[lineNo][j + sprite.x] = sprite.data[lineNo - sprite.y][j]
                                 }
                             }

@@ -524,7 +524,7 @@ function z80 (mem, runInterruptsFunction) {
     let lastInstr = 0;
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        log(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        // log(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger
