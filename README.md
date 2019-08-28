@@ -1,7 +1,9 @@
 # THIS IS A WORK IN PROGRESS  
   
 ## How to run:  
-Place a `Tetris (JUE) (V1.1) [!].gb` rom in `res/` folder and run `npm start` (a drag-and-drop rom loader will come soon).
+- `npm install`
+- `npm start`
+- open http://127.0.0.1/ in your browser
   
 ## Controls:
 | Keyboard | GameBoy |
@@ -18,21 +20,21 @@ Place a `Tetris (JUE) (V1.1) [!].gb` rom in `res/` folder and run `npm start` (a
 ## What practical things works:  
 - Boot rom works fully
 - Most of the CPU Blargg's tests are passing as well  
-- Tetris is now playable:  
-![Alt text](/img/tetrisrun.gif?raw=true "Tetris menu")  
+- Tetris is now fully playable
+- Adjustris (https://github.com/tbsp/Adjustris) is fully playable:  
+![Alt text](/img/adjustris.gif?raw=true "Adjustris gameplay")  
   
 ## What was tested but doesn't work:  
 - Dr Mario game
 - Super Mario game  
   
 ## What's yet to be implemented:  
-- Palettes should be improved for sure, the colors are kinda wrong
+- Palettes for sprites
 - Sound
 - Last interrupt (serial)
 - MBC
 - 8x16 sprites
-- sprite flip
-- WINDOW
+- WINDOW rendering (https://gbdev.gg8.se/wiki/articles/Video_Display#The_Window)
 - A drag-and-drop game loader
   
 ## Sources:  

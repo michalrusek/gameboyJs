@@ -130,7 +130,7 @@ let emu = function (outputDebugInfo) {
             //TODO: Implement the rest of the interrupts
             let iflag = mem.readByte(0xFF0F); let ienabled = mem.readByte(0xFFFF)
             if ((iflag & 0b1) && (ienabled & 0b1) && cpu.interrupt(0x40)) {iflag = iflag ^ 0b1}
-            if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {debugger; iflag = iflag ^ 0b10}
+            if ((iflag & 0b10) && (ienabled & 0b10) && cpu.interrupt(0x48)) {iflag = iflag ^ 0b10}
             if ((iflag & 0b100) && (ienabled & 0b100) && cpu.interrupt(0x50)) {iflag = iflag ^ 0b100}
             if ((iflag & 0b10000) && (ienabled & 0b10000) && cpu.interrupt(0x60)) {iflag = iflag ^ 0b10000}
             mem.setByte(0xFF0F, iflag, true)
@@ -158,7 +158,7 @@ let emu = function (outputDebugInfo) {
         let palette = [
             0xFF, //0
             0xCC, //1
-            0x66, //2
+            0x99, //2
             0x00, //4
         ]
         let getLine = (a, b) => {
@@ -174,7 +174,7 @@ let emu = function (outputDebugInfo) {
                 switch (n) {
                     case 0: palette[Math.floor(i/2)] = 0xFF; break;
                     case 1: palette[Math.floor(i/2)] = 0xCC; break;
-                    case 2: palette[Math.floor(i/2)] = 0x66; break;
+                    case 2: palette[Math.floor(i/2)] = 0x99; break;
                     case 3: palette[Math.floor(i/2)] = 0x00; break;
                 }
             }
@@ -189,7 +189,7 @@ let emu = function (outputDebugInfo) {
                 for (j = 0; j < 16; j = j + 2) {
                     let topByte = mem.readByte(i + j); 
                     let botByte = mem.readByte(i + j + 1); 
-                    tiles[z][Math.floor(j/2)] = getLine(botByte, topByte); 
+                    tiles[z][Math.floor(j/2)] = getLine(topByte, botByte); 
                 }
                 z++
             }
@@ -233,7 +233,7 @@ let emu = function (outputDebugInfo) {
 
             //1. Read BGMap from memory (32x32 tiles)
             let bgTiles = []
-            let signed = ((lcdc > 4) & 0b1) ? false : true
+            let signed = ((lcdc >> 4) & 0b1) ? false : true
             if (tiles.length == 0) {return}
             if ((lcdc >> 3) & 0b1) {
                 for (let i = 0x9C00; i < 0xA000; i++) {bgTiles.push(mem.readByte(i))}
@@ -281,6 +281,7 @@ let emu = function (outputDebugInfo) {
             //TODO: SPRITES
             if (mem.readByte(0xFF40) & 2) {
                 let spritesDrawnOnLine = 0
+                let reversedArray = [7, 6, 5, 4, 3, 2, 1, 0] //SO LAZY, TODO: Not be lazy
                 for (let i = 0; i < sprites.length; i++) {
                     let sprite = sprites[i]
                     if (lineNo >= sprite.y && lineNo < (sprite.y + 8)) {
@@ -290,8 +291,11 @@ let emu = function (outputDebugInfo) {
                                 if (j + sprite.x >=0 && j + sprite.x < 160) {
                                     // console.log(`Drawing sprite!`)
                                     //TODO: !sprite.prio
+                                    //TODO: Flip
                                     //For each pixel you should check the sprite priority (0=OBJ Above BG, 1=OBJ Behind BG color 1-3)
-                                    frame[lineNo][j + sprite.x] = sprite.data[lineNo - sprite.y][j]
+                                    let dataX = sprite.xFlip ? reversedArray[j] : j
+                                    let dataY = sprite.yFlip ? reversedArray[lineNo - sprite.y] : lineNo - sprite.y 
+                                    frame[lineNo][j + sprite.x] = sprite.data[dataY][dataX]
                                 }
                             }
                             spritesDrawnOnLine++

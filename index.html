@@ -2,97 +2,61 @@
     <head>
         <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet"/> 
         <style>
-            .game {
-                width: 640px;
+            .grid-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr 1fr;
+                grid-template-rows: 1fr 1fr 1fr 1fr;
+                grid-template-areas: ". . game game debugCpu debugCtrl debugMem" ". . game game debugCpu debugCtrl debugMem" ". . controls controls debugCpu debugCtrl debugMem" ". . controls controls debugCpu debugCtrl debugMem";
             }
+            .game { grid-area: game; }
+            .controls { grid-area: controls; }
+            .debugMem { grid-area: debugMem; }
+            .debugCtrl { grid-area: debugCtrl; }
+            .debugCpu { grid-area: debugCpu; }
 
-            .bady {
-                font-family: 'Roboto', sans-serif;
-                display: flex;
-                flex-direction: row;
-                flex-wrap: wrap;
-                width: auto;
-                font-size: 2em;
-            }
-
-            .bady div {
-                /* min-width: 200px */
-                margin-left: 1em
-            }
-
-            .controls {
-                display: flex;
-                flex-direction: column;
-                min-width: 0px;
-                
-            }
-            
-            .controls button {
-                margin-top: 1em;
-            }
-
-            .cpu {
-                display: flex;
-                flex-direction: column;
-                min-width: 3em
-            }
-
-            .labelValue {
-                display: flex;
-                flex-direction: row;
-                justify-content: space-between
-            }
-
-            .memory {
-                display: flex;
-                flex-direction: column;
-                width: 10em;
-                align-content: left;
+            table, th, td {
+                border: 1px solid black;
             }
         </style>
     </head>
     <body class="bady">
-        <div class="game">
-            GAME:<br/>
-            <div>
-                <canvas id="game" width="160" height="144" style="transform: scale(4); transform-origin: top left;"></canvas>
+        <div class="grid-container">
+            <div class="game">Game window:<br/><canvas id="game" width="160" height="144" style="transform: scale(2); transform-origin: top left; border: 1px solid #4169E1"></canvas></div>
+            <div class="controls">
+                <h2>Controls:</h2> <br/>
+                <table><tr><th>Keyboard</th><th>GameBoy</th></tr><tr><td>Enter</td><td>Start</td></tr><tr><td>Space</td><td>Select</td></tr><tr><td>Z</td><td>A</td></tr><tr><td>X</td><td>B</td></tr><tr><td>Arrow up</td><td>Arrow up</td></tr><tr><td>Arrow down</td><td>Arrow down</td></tr><tr><td>Arrow right</td><td>Arrow right</td></tr><tr><td>Arrow left</td><td>Arrow left</td></tr></table>    
             </div>
-        </div>
-        <div class="controls">
-            Controls:
-            <button onclick="run()">Run/Re-Run</button>
-            <button onclick="stop()">Stop</button>
-            <button onclick="cont()">Continue</button>
-            <button onclick="step()">Step</button>
-        </div>
-        <div class="memory">
-            <div>Memory:</div>
-            <button onclick="printMemory()">Print memory</button>
-            <div style="font-size: 0.5em; display: flex; flex-direction: row; margin-left: 0.2em;">Go to address: <input id="memSearchBoxAddr" onkeypress="memAddr(event)"></input></div>
-            <div style="font-size: 0.5em; display: flex; flex-direction: row; margin-left: 0.2em;">Go to value: <input id="memSearchBoxVal" onkeypress="memVal(event)"></input></div>            
-            <select multiple id="mem" size=50></select>
-        </div>
-        <div class="cpu">
-            <div>CPU:</div>
-            <div class="labelValue" id="rb"></div>
-            <div class="labelValue" id="rc"></div>
-            <div class="labelValue" id="rd"></div>
-            <div class="labelValue" id="re"></div>
-            <div class="labelValue" id="rh"></div>
-            <div class="labelValue" id="rl"></div>
-            <div class="labelValue" id="rhl"></div>
-            <div class="labelValue" id="ra"></div>
-            <div class="labelValue" id="rf"></div>
-            <div class="labelValue" id="pc"></div>
-            <div class="labelValue" id="sp"></div>
-
-        </div>
-        <!-- <div>
-            TILES:<br/>
-            <div>
-                <canvas id="tiles" width="128" height="192"></canvas>
+            <div class="debugCpu">
+                <div>CPU:</div>
+                <div class="labelValue" id="rb"></div>
+                <div class="labelValue" id="rc"></div>
+                <div class="labelValue" id="rd"></div>
+                <div class="labelValue" id="re"></div>
+                <div class="labelValue" id="rh"></div>
+                <div class="labelValue" id="rl"></div>
+                <div class="labelValue" id="rhl"></div>
+                <div class="labelValue" id="ra"></div>
+                <div class="labelValue" id="rf"></div>
+                <div class="labelValue" id="pc"></div>
+                <div class="labelValue" id="sp"></div>
             </div>
-        </div> -->
+            <div class="debugCtrl">
+                <div>Debugger:</div>
+                <button onclick="run()">Run/Re-Run</button>
+                <button onclick="stop()">Stop</button>
+                <button onclick="cont()">Continue</button>
+                <button onclick="step()">Step</button>
+            </div>
+            <div class="debugMem">
+                <div>Memory:</div>
+                <button onclick="printMemory()">Print memory</button>
+                <div>Go to address: <input id="memSearchBoxAddr" onkeypress="memAddr(event)"></input></div>
+                <div>Go to value: <input id="memSearchBoxVal" onkeypress="memVal(event)"></input></div>            
+                <select multiple id="mem" style="width: 100%" size=25></select>
+            </div>
+            
+        </div>
+        
         <script src="mnemonics.js"></script>
         <script src="res/tetrisRom.js"></script>
         <script src="cpu.js"></script>

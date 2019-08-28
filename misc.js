@@ -125,8 +125,8 @@ function run () {
 
     //Get the ROM and start it
     //
-    fetch("res/Tetris (JUE) (V1.1) [!].gb")
-    // fetch("res/adjtris.gb")
+    // fetch("res/Tetris (JUE) (V1.1) [!].gb")
+    fetch("roms/adjustris.gb")
     // fetch("res/Super Mario Land (JUE) (V1.1) [!].gb")
     // fetch("res/Dr. Mario (World) (Rev A).gb")
     // fetch("res/opus5.gb")
@@ -148,7 +148,9 @@ function run () {
         .then((ab) => {
             game = new Uint8Array(ab);
             window.gb = emu(outputDebugInfo) 
-            // window.gb.setBreakPoint(0x29b8)
+            // window.gb.setBreakPoint(0x1ff2)
             window.gb.start()          
         })
 }
+
+run()
