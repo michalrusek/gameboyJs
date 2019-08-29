@@ -3,7 +3,6 @@
 ## What practical things works:  
 - Boot rom works fully
 - Most of the CPU Blargg's tests are passing as well  
-- Tetris is now fully playable
 - Adjustris (https://github.com/tbsp/Adjustris) is fully playable:  
 ![Alt text](/img/adjustris.gif?raw=true "Adjustris gameplay")  
 - A few other games are also playable/semi playable, e.g.:  
