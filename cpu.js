@@ -245,7 +245,7 @@ function z80 (mem, runInterruptsFunction) {
         'd': ()=>{r.c = decByte(r.c); pc = pc + 1; return 4},
         'e': ()=>{r.c = mem.readByte(pc + 1); pc = pc + 2; return 8},
         'f': ()=>{pc = pc + 1; cb(15); f.z = 0; return 4},
-        '10': ()=>{/*stopped = true;*/ pc = pc + 1; return 4},
+        '10': ()=>{if (IME) {stopped = true;} else {pc = pc + 1;} return 4},
         '11': ()=>{de(mem.readWord(pc + 1)); pc = pc + 3; return 12},
         '12': ()=>{pc = pc + 1; mem.setByte(de(), r.a); return 8},
         '13': ()=>{if (de() == 0xFFFF) {de(0)} else {de(de() + 1)} pc = pc + 1; return 8},
@@ -524,7 +524,9 @@ function z80 (mem, runInterruptsFunction) {
     let lastInstr = 0;
     let opcode = function (instr) {
         // console.log(`${instr.toString(16)} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}`)
-        // log(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        if (loggingEnabled) {
+            log(`${instr.toString(16)} - ${mnemonics[instr.toString(16).toLowerCase()](mem.readByte(pc + 1))} at address: ${pc.toString(16)}; next two bytes: ${mem.readByte(pc + 1).toString(16)}, ${mem.readByte(pc + 2).toString(16)}, a: ${r.a}`)
+        }
         // logRegisters()
         // if (pc === 0x96) {
         //     debugger

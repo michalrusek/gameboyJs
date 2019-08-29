@@ -27,6 +27,7 @@ let emu = function (outputDebugInfo) {
         FFFF	FFFF	                        Interrupts Enable Register (IE)	
         */
         let memory = new Array(0xFFFF + 1)
+        let cartridgeType = 0 //0 - no MBC / 1 - MBC1 / 2 - MBC1 with ext. ram / 3 - mbc1 w/ battery-backed external ram
         for (let i = 0; i < 0x10000; i++) {
             memory[i] = 0
         }
@@ -54,10 +55,26 @@ let emu = function (outputDebugInfo) {
         let readByte = (addr) => {addr = adjust(addr); return memory[addr]}
         //TODO: Rename `force` to something else
         let setByte = (addr, val, force) => {
+            // if (addr == 0xFF43) {
+            //     debugger
+            // }
             val = Math.abs(val)
             addr = adjust(addr); 
-            if (addr >= 0x0 && addr <= 0x8000 && !force) {
-                //TODO: Implement MBC; just return for now
+            if (addr < 0x8000 && !force) {
+                if (addr >= 0x0 && addr < 0x2000) {
+                    //TODO: Enable extrernal ram
+                } else if (addr >= 0x2000 && addr < 0x4000) {
+                    //Select rom bank and load it in
+                    let bankNo = val & 0b11111
+                    let start = bankNo * 0x4000
+                    for (let i = 0; i < 0x4000; i++) {
+                        memory[0x4000 + i] = game[start + i]
+                    }
+                } else if (addr >= 0x4000 && addr < 0x6000) {
+                    //TODO: select appropriate stuff 
+                } else if (addr >= 0x6000 && addr < 0x8000) {
+                    //TODO: Select ROM/RAM bank
+                }
                 return
             }
             //VRAM is only accessible during some of the PPU states, not all of them
@@ -114,15 +131,21 @@ let emu = function (outputDebugInfo) {
             memory[0xFF00] = 0x0F
             memory[0xFF50] = 0x01 //BOOT ROM DOES THAT AFTER CONFIRMING NINTENDO LOGO IS INTACT ON THE CARTRIDGE
         }
-        return {initMem, readByte, setByte, readSigned, readWord, setWord, memory}
+        let setUpMbc = () => {
+            //TODO: Fill in the rest?
+            cartridgeType = readByte(0x147)
+        }
+        return {initMem, readByte, setByte, readSigned, readWord, setWord, memory, setUpMbc}
     })()
     mem.initMem()
 
     //4a. Read game into memory
     //TODO: Implement banks overall
-    for (let i = 0; i < 0x8000 && i < game.length; i++) {
+    for (let i = 0; i < 0x4000 && i < game.length; i++) {
         mem.setByte(i, game[i], true)
     }
+
+    mem.setUpMbc()
 
     let interrupts = (()=>{
 
@@ -268,10 +291,10 @@ let emu = function (outputDebugInfo) {
                 //TODO: Check if BG should be drawn (LCDC bit 0?)
                 //1. Read scroll positions
                 let scy = mem.readByte(0xFF42); let scx = mem.readByte(0xFF43)
-                let bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY % 0xFF}
+                let bgY = lineNo + scy; if (bgY > 0xFF) {bgY = bgY & 0xFF}
                 //2. Draw scrollX + lineNo
                 for (let i = 0; i < 160; i++) {
-                    let bgX = scx + i; if (bgX > 0xFF) {bgX = bgX % 0xFF}
+                    let bgX = scx + i; if (bgX > 0xFF) {bgX = bgX & 0xFF}
                     frame[lineNo][i] = bgMapPixels[bgY][bgX]
                 }
             }
@@ -310,7 +333,7 @@ let emu = function (outputDebugInfo) {
         let update = () => {
             if(vstat == mem.readByte(0xFF45)){ // LYC == LY ?
                 lcdstat |= 4;
-                if(hstat == 0 && lcdstat & 64){interrupts.lcd()};
+                if ((lcdstat & 0x64) && hstat == 0) {interrupts.lcd();}
              }else{
                 lcdstat &= ~4;
              }
@@ -506,9 +529,6 @@ let emu = function (outputDebugInfo) {
             }
         } else if ((mem.readByte(0xFF00) & 0x30) == 0x30) {
             return 0x30
-        }
-        if (lowerNibble != 0xf) {
-            console.log(`Lower nibble: ${lowerNibble.toString(2)}`)
         }
         mem.setByte(0xFF00, (mem.readByte(0xFF00) & 0xF0) + lowerNibble, true)        
     }

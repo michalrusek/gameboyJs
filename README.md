@@ -1,5 +1,13 @@
 # THIS IS A WORK IN PROGRESS  
   
+## What practical things works:  
+- Boot rom works fully
+- Most of the CPU Blargg's tests are passing as well  
+- Tetris is now fully playable
+- Adjustris (https://github.com/tbsp/Adjustris) is fully playable:  
+![Alt text](/img/adjustris.gif?raw=true "Adjustris gameplay")  
+- A few other games are also playable/semi playable, e.g.:  
+  ![Alt text](/img/tetris.gif?raw=true "Tetris")![Alt text](/img/mario.gif?raw=true "Super Mario Land")
 ## How to run:  
 - `npm install`
 - `npm start`
@@ -17,13 +25,6 @@
 | →        | →       |
 | ←        | ←       |  
   
-## What practical things works:  
-- Boot rom works fully
-- Most of the CPU Blargg's tests are passing as well  
-- Tetris is now fully playable
-- Adjustris (https://github.com/tbsp/Adjustris) is fully playable:  
-![Alt text](/img/adjustris.gif?raw=true "Adjustris gameplay")  
-  
 ## What was tested but doesn't work:  
 - Dr Mario game
 - Super Mario game  
@@ -32,7 +33,9 @@
 - Palettes for sprites
 - Sound
 - Last interrupt (serial)
-- MBC
+- MBC1 full support (only partial support is now enabled)
+- Fix DAA
+- Sprites transparent pixels
 - 8x16 sprites
 - WINDOW rendering (https://gbdev.gg8.se/wiki/articles/Video_Display#The_Window)
 - A drag-and-drop game loader

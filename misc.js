@@ -127,8 +127,11 @@ function run () {
     //
     // fetch("res/Tetris (JUE) (V1.1) [!].gb")
     fetch("roms/adjustris.gb")
+    // fetch("res/Donkey Kong Land III (U) [S][!].gb")
+    // fetch("res/Legend of Zelda, The - Link's Awakening (U) (V1.2) [!].gb")
+    // fetch("res/Pokemon - Blue Version (UE) [S][!].gb")
+    // fetch("res/Super Mario Land 2 - 6 Golden Coins (UE) (V1.2) [!].gb")
     // fetch("res/Super Mario Land (JUE) (V1.1) [!].gb")
-    // fetch("res/Dr. Mario (World) (Rev A).gb")
     // fetch("res/opus5.gb")
     // fetch("res/individual/01-special.gb")
     // fetch("res/individual/02-interrupts.gb")
@@ -148,7 +151,8 @@ function run () {
         .then((ab) => {
             game = new Uint8Array(ab);
             window.gb = emu(outputDebugInfo) 
-            // window.gb.setBreakPoint(0x1ff2)
+            // window.gb.setBreakPoint(0xA0)
+            // window.gb.setBreakPoint(0x95)
             window.gb.start()          
         })
 }
