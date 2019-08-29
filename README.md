@@ -1,4 +1,4 @@
-# THIS IS A WORK IN PROGRESS  
+# Note this project is not finished at all and there are some crucial parts missing to this emulator; Not sure if I'll continue as it reached the state I wanted to reach (playing Tetris & Mario) 
   
 ## What practical things works:  
 - Boot rom works fully
