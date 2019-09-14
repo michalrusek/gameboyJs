@@ -26,7 +26,6 @@
   
 ## What was tested but doesn't work:  
 - Dr Mario game
-- Super Mario game  
   
 ## What's yet to be implemented:  
 - Palettes for sprites
